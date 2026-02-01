@@ -810,6 +810,192 @@ app.get('/api/teams', (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// TEMPLATES — Project type templates
+// ═══════════════════════════════════════
+const TEMPLATES_DIR = path.join(CORE_DIR, 'templates', 'project-types');
+
+app.get('/api/templates', (req, res) => {
+  const templates = [];
+  try {
+    if (fs.existsSync(TEMPLATES_DIR)) {
+      fs.readdirSync(TEMPLATES_DIR).forEach(f => {
+        if (!f.endsWith('.json')) return;
+        try {
+          const content = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, f), 'utf8'));
+          templates.push(content);
+        } catch (e) {
+          console.error(`  ⚠ Failed to parse template ${f}:`, e.message);
+        }
+      });
+    }
+  } catch (e) {
+    console.error('  ⚠ Failed to read templates dir:', e.message);
+  }
+  res.json({ templates });
+});
+
+// ═══════════════════════════════════════
+// PROJECT CONFIG — Init & manage
+// ═══════════════════════════════════════
+
+app.get('/api/project/config', (req, res) => {
+  // Return current project configuration
+  const projectConfig = {
+    name: config.name || '',
+    projectRoot: config.projectRoot || '',
+    port: config.port,
+    agents: config.agents,
+    gateway: { url: config.gateway.url, connected: bridge.connected }
+  };
+
+  // Also check for .ag-dev/config.json in project root
+  let agDevConfig = null;
+  if (config.projectRoot) {
+    const agDevPath = path.join(config.projectRoot, '.ag-dev', 'config.json');
+    try {
+      if (fs.existsSync(agDevPath)) {
+        agDevConfig = JSON.parse(fs.readFileSync(agDevPath, 'utf8'));
+      }
+    } catch {}
+  }
+
+  res.json({
+    configured: !!(config.projectRoot && config.name),
+    config: projectConfig,
+    agDevConfig
+  });
+});
+
+app.post('/api/project/config', (req, res) => {
+  const { name, projectRoot, agents, squads } = req.body;
+
+  // Update in-memory config
+  if (name) config.name = name;
+  if (projectRoot) config.projectRoot = projectRoot;
+  if (agents) config.agents = { ...config.agents, ...agents };
+
+  // Save to config.json
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to save config: ' + e.message });
+  }
+
+  // Also save .ag-dev/config.json in project root if projectRoot is set
+  if (config.projectRoot) {
+    const agDevDir = path.join(config.projectRoot, '.ag-dev');
+    try {
+      if (!fs.existsSync(agDevDir)) fs.mkdirSync(agDevDir, { recursive: true });
+      const agDevConfig = {
+        name: config.name,
+        projectRoot: config.projectRoot,
+        agents: agents || config.agents,
+        squads: squads || undefined
+      };
+      fs.writeFileSync(path.join(agDevDir, 'config.json'), JSON.stringify(agDevConfig, null, 2));
+    } catch {}
+  }
+
+  broadcast('project_config', { config: { name: config.name, projectRoot: config.projectRoot } });
+  res.json({ ok: true, config: { name: config.name, projectRoot: config.projectRoot, agents: config.agents } });
+});
+
+app.post('/api/project/init', (req, res) => {
+  const { name, projectRoot, templateId, agents: customAgents, squads: customSquads } = req.body;
+
+  if (!name) return res.status(400).json({ error: 'Project name is required' });
+  if (!projectRoot) return res.status(400).json({ error: 'Project root path is required' });
+
+  // Resolve the project path
+  const resolvedRoot = path.resolve(projectRoot);
+  if (!fs.existsSync(resolvedRoot)) {
+    return res.status(400).json({ error: `Project path does not exist: ${resolvedRoot}` });
+  }
+
+  // Load template if specified
+  let template = null;
+  if (templateId) {
+    const templatePath = path.join(TEMPLATES_DIR, `${templateId}.json`);
+    try {
+      if (fs.existsSync(templatePath)) {
+        template = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
+      }
+    } catch {}
+  }
+
+  const agentsToUse = customAgents || template?.agents || [];
+  const squadsToUse = customSquads || template?.squads || {};
+  const directives = template?.defaultDirectives || {};
+
+  // Create .ag-dev directory in project
+  const agDevDir = path.join(resolvedRoot, '.ag-dev');
+  try {
+    if (!fs.existsSync(agDevDir)) fs.mkdirSync(agDevDir, { recursive: true });
+  } catch (e) {
+    return res.status(500).json({ error: `Failed to create .ag-dev dir: ${e.message}` });
+  }
+
+  // Write .ag-dev/config.json
+  const agDevConfig = {
+    name,
+    projectRoot: resolvedRoot,
+    template: templateId || null,
+    agents: {
+      definitionsDir: path.join(__dirname, '..', 'core', 'agents'),
+      active: agentsToUse
+    },
+    squads: squadsToUse
+  };
+
+  try {
+    fs.writeFileSync(path.join(agDevDir, 'config.json'), JSON.stringify(agDevConfig, null, 2));
+  } catch (e) {
+    return res.status(500).json({ error: `Failed to write config: ${e.message}` });
+  }
+
+  // Update main AG Dev config
+  config.name = name;
+  config.projectRoot = resolvedRoot;
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  } catch {}
+
+  // Set up directives from template
+  if (Object.keys(directives).length > 0) {
+    const stratPath = path.join(__dirname, 'strategy.json');
+    let strat = { vision: '', guardrails: '', directives: {} };
+    try {
+      if (fs.existsSync(stratPath)) strat = JSON.parse(fs.readFileSync(stratPath, 'utf8'));
+    } catch {}
+
+    for (const [agentId, text] of Object.entries(directives)) {
+      strat.directives[agentId] = {
+        agentId,
+        text,
+        history: strat.directives[agentId]?.history || []
+      };
+    }
+
+    try { fs.writeFileSync(stratPath, JSON.stringify(strat, null, 2)); } catch {}
+  }
+
+  broadcast('project_init', { name, projectRoot: resolvedRoot, template: templateId });
+  logEvent('project_init', { name, projectRoot: resolvedRoot, template: templateId, agentCount: agentsToUse.length });
+
+  res.json({
+    ok: true,
+    project: {
+      name,
+      projectRoot: resolvedRoot,
+      template: templateId,
+      agents: agentsToUse,
+      squads: squadsToUse,
+      directives: Object.keys(directives)
+    }
+  });
+});
+
+// ═══════════════════════════════════════
 // HEALTH CHECK
 // ═══════════════════════════════════════
 app.get('/api/health', (req, res) => {
@@ -1080,6 +1266,116 @@ app.get('/api/state', (req, res) => {
       url: bridge.gatewayUrl
     }
   });
+});
+
+// ═══════════════════════════════════════
+// PROJECT TEMPLATES & INIT
+// ═══════════════════════════════════════
+const TEMPLATES_DIR = path.join(CORE_DIR, 'templates', 'project-types');
+
+app.get('/api/templates', (req, res) => {
+  const templates = [];
+  try {
+    if (fs.existsSync(TEMPLATES_DIR)) {
+      fs.readdirSync(TEMPLATES_DIR).forEach(f => {
+        if (!f.endsWith('.json')) return;
+        try {
+          const content = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, f), 'utf8'));
+          templates.push(content);
+        } catch {}
+      });
+    }
+  } catch {}
+  res.json({ templates });
+});
+
+app.get('/api/project/config', (req, res) => {
+  res.json({
+    name: config.name,
+    projectRoot: PROJECT_ROOT,
+    port: PORT,
+    configured: !!(config.name && PROJECT_ROOT),
+    gateway: config.gateway || {},
+    agents: config.agents || {},
+  });
+});
+
+app.post('/api/project/init', (req, res) => {
+  const { name, projectRoot, template } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  // Update config
+  config.name = name;
+  config.projectRoot = projectRoot || PROJECT_ROOT;
+
+  // Load template if specified
+  let templateData = null;
+  if (template) {
+    const tplPath = path.join(TEMPLATES_DIR, `${template}.json`);
+    try {
+      if (fs.existsSync(tplPath)) {
+        templateData = JSON.parse(fs.readFileSync(tplPath, 'utf8'));
+      }
+    } catch {}
+  }
+
+  // Save updated config
+  try {
+    const configToSave = { ...config };
+    if (templateData) {
+      configToSave.template = template;
+    }
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(configToSave, null, 2));
+  } catch {}
+
+  // Apply template directives to strategy
+  if (templateData && templateData.defaultDirectives) {
+    const stratPath = path.join(__dirname, 'strategy.json');
+    let strategy = { vision: '', guardrails: '', directives: {} };
+    try { if (fs.existsSync(stratPath)) strategy = JSON.parse(fs.readFileSync(stratPath, 'utf8')); } catch {}
+
+    Object.entries(templateData.defaultDirectives).forEach(([agentId, text]) => {
+      if (!strategy.directives[agentId]) {
+        strategy.directives[agentId] = { agentId, text, history: [] };
+      }
+    });
+
+    try { fs.writeFileSync(stratPath, JSON.stringify(strategy, null, 2)); } catch {}
+  }
+
+  // Create .ag-dev in project dir
+  const agDevDir = path.join(config.projectRoot, '.ag-dev');
+  try {
+    if (!fs.existsSync(agDevDir)) fs.mkdirSync(agDevDir, { recursive: true });
+    fs.writeFileSync(path.join(agDevDir, 'config.json'), JSON.stringify({
+      name,
+      projectRoot: config.projectRoot,
+      template: template || 'custom',
+      created: new Date().toISOString(),
+    }, null, 2));
+  } catch {}
+
+  logEvent('project_init', { name, template });
+  broadcast('project_init', { name, template });
+
+  res.json({
+    success: true,
+    name,
+    projectRoot: config.projectRoot,
+    template: templateData,
+  });
+});
+
+app.post('/api/project/config', (req, res) => {
+  const updates = req.body;
+  if (updates.name) config.name = updates.name;
+  if (updates.projectRoot) config.projectRoot = updates.projectRoot;
+
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  } catch {}
+
+  res.json({ success: true, config });
 });
 
 // ═══════════════════════════════════════

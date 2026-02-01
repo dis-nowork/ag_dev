@@ -1,0 +1,15 @@
+{
+  "name": "ag-dev",
+  "version": "1.0.0",
+  "description": "AG Dev — Multi-Agent Command Center for Clawdbot/OpenClaw",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "install": "bash scripts/install.sh",
+    "dev": "node server/server.js",
+    "build": "cd ui && npm run build && cp -r dist ../ui-dist",
+    "start": "node server/server.js"
+  },
+  "keywords": ["clawdbot", "openclaw", "multi-agent", "command-center", "ai"],
+  "license": "MIT"
+}

@@ -1,51 +1,47 @@
 #!/bin/bash
-# AG Dev Installer — installs the armor into any project
+# AG Dev — Installation Script
 set -e
 
-PROJECT_DIR="${1:-.}"
-AGDEV_DIR="$PROJECT_DIR/.ag-dev"
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo ""
-echo "  ╔═══════════════════════════════════════════╗"
-echo "  ║         AG DEV — Installing Armor         ║"
-echo "  ╚═══════════════════════════════════════════╝"
-echo ""
+echo "╔═══════════════════════════════════════╗"
+echo "║   AG Dev — Installing Dependencies    ║"
+echo "╚═══════════════════════════════════════╝"
 
-# Copy core files
-echo "📦 Installing core agents & workflows..."
-mkdir -p "$AGDEV_DIR"
-cp -r "$SCRIPT_DIR/core" "$AGDEV_DIR/"
-cp -r "$SCRIPT_DIR/server" "$AGDEV_DIR/"
-
-# Install server deps
+# Server deps
 echo "📦 Installing server dependencies..."
-cd "$AGDEV_DIR/server" && npm install --production 2>/dev/null
+cd "$ROOT_DIR/server"
+npm install --production 2>/dev/null
 
-# Build UI if not pre-built
-if [ -d "$SCRIPT_DIR/ui/dist" ]; then
-  echo "📦 Copying pre-built UI..."
-  cp -r "$SCRIPT_DIR/ui/dist" "$AGDEV_DIR/ui-dist"
-else
-  echo "📦 Building UI..."
-  cd "$SCRIPT_DIR/ui"
-  NODE_ENV=development npm install 2>/dev/null
-  npx vite build 2>/dev/null
-  cp -r dist "$AGDEV_DIR/ui-dist"
-fi
+# UI deps + build
+echo "📦 Installing UI dependencies..."
+cd "$ROOT_DIR/ui"
+npm install 2>/dev/null
 
-# Update server to point to project root
-cat > "$AGDEV_DIR/config.json" << EOF
-{
-  "projectRoot": "$(cd "$PROJECT_DIR" && pwd)",
-  "port": 80,
-  "name": "$(basename "$(cd "$PROJECT_DIR" && pwd)")"
-}
-EOF
+echo "🔨 Building UI..."
+npx vite build 2>/dev/null
+
+# Copy build to ui-dist
+echo "📂 Copying build to ui-dist..."
+rm -rf "$ROOT_DIR/ui-dist"
+cp -r "$ROOT_DIR/ui/dist" "$ROOT_DIR/ui-dist"
 
 echo ""
-echo "  ✅ AG Dev installed!"
-echo ""
-echo "  Start:  node $AGDEV_DIR/server/server.js"
-echo "  Open:   http://localhost (or Tailscale IP)"
-echo ""
+echo "╔═══════════════════════════════════════╗"
+echo "║   ✅ AG Dev installed successfully!    ║"
+echo "╠═══════════════════════════════════════╣"
+echo "║                                       ║"
+echo "║  Standalone:                          ║"
+echo "║    cd ag_dev && npm start             ║"
+echo "║                                       ║"
+echo "║  As Clawdbot plugin:                  ║"
+echo "║    Add to clawdbot.json:              ║"
+echo "║    extensions: {                      ║"
+echo "║      \"ag-dev\": {                      ║"
+echo "║        \"enabled\": true,               ║"
+echo "║        \"port\": 3000                   ║"
+echo "║      }                                ║"
+echo "║    }                                  ║"
+echo "║                                       ║"
+echo "╚═══════════════════════════════════════╝"

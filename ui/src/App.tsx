@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { LayoutDashboard, GitBranch, Network, Search, Terminal, BarChart3, Target, FileText, Wifi, WifiOff, ScrollText, Share2 } from 'lucide-react'
 
@@ -15,6 +16,7 @@ import { ChatFloat } from './components/ChatFloat'
 import { ConsentBar } from './components/ConsentBar'
 import { StatusBar } from './components/StatusBar'
 import { ToastContainer } from './components/Toast'
+import { InitWizard } from './components/InitWizard'
 
 // Views
 import { CockpitView } from './views/CockpitView'
@@ -67,6 +69,21 @@ function BridgeIndicator() {
 export default function App() {
   const { currentView, setView, selectedAgentId } = useUIStore()
   const { openCommandPalette } = useUIStore()
+  const [showInitWizard, setShowInitWizard] = useState(false)
+  const [configChecked, setConfigChecked] = useState(false)
+
+  // Check if project is configured
+  useEffect(() => {
+    fetch('/api/project/config')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.configured || !data.name) {
+          setShowInitWizard(true)
+        }
+        setConfigChecked(true)
+      })
+      .catch(() => setConfigChecked(true))
+  }, [])
 
   // Connect to server
   useSSE()
@@ -172,6 +189,14 @@ export default function App() {
       <CommandPalette />
       <ChatFloat />
       <ToastContainer />
+
+      {/* Init wizard when no project configured */}
+      {showInitWizard && (
+        <InitWizard onComplete={() => {
+          setShowInitWizard(false)
+          window.location.reload()
+        }} />
+      )}
     </div>
   )
 }
