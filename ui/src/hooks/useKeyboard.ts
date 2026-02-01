@@ -34,6 +34,9 @@ export function useKeyboard() {
       if (e.key === '4') { setView('emergence'); return }
       if (e.key === '5') { setView('strategy'); return }
       if (e.key === '6') { setView('terminal'); return }
+      if (e.key === '7') { setView('diagrams'); return }
+      if (e.key === '8') { setView('logs'); return }
+      if (e.key === '9') { setView('docs'); return }
 
       // Escape — back to cockpit
       if (e.key === 'Escape') {

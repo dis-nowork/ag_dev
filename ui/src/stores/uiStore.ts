@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ViewId = 'cockpit' | 'agent' | 'pipeline' | 'emergence' | 'terminal' | 'gantt' | 'strategy'
+export type ViewId = 'cockpit' | 'agent' | 'pipeline' | 'emergence' | 'terminal' | 'gantt' | 'strategy' | 'docs' | 'diagrams' | 'logs'
 
 interface UIStore {
   currentView: ViewId

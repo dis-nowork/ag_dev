@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { LayoutDashboard, GitBranch, Network, Search, Terminal, BarChart3, Target, Wifi, WifiOff } from 'lucide-react'
+import { LayoutDashboard, GitBranch, Network, Search, Terminal, BarChart3, Target, FileText, Wifi, WifiOff, ScrollText, Share2 } from 'lucide-react'
 
 // Stores
 import { useUIStore, type ViewId } from './stores/uiStore'
@@ -24,6 +24,9 @@ import { EmergenceView } from './views/EmergenceView'
 import { TerminalView } from './views/TerminalView'
 import { GanttView } from './views/GanttView'
 import { StrategyView } from './views/StrategyView'
+import { DocsView } from './views/DocsView'
+import { DiagramsView } from './views/DiagramsView'
+import { LogsView } from './views/LogsView'
 
 import { colors } from './lib/theme'
 
@@ -34,6 +37,9 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: React.ReactNode; shortcut: s
   { id: 'emergence', label: 'Emergence', icon: <Network size={15} />, shortcut: '4' },
   { id: 'strategy', label: 'Strategy', icon: <Target size={15} />, shortcut: '5' },
   { id: 'terminal', label: 'Terminal', icon: <Terminal size={15} />, shortcut: '6' },
+  { id: 'diagrams', label: 'Diagrams', icon: <Share2 size={15} />, shortcut: '7' },
+  { id: 'logs', label: 'Logs', icon: <ScrollText size={15} />, shortcut: '8' },
+  { id: 'docs', label: 'Docs', icon: <FileText size={15} />, shortcut: '9' },
 ]
 
 /** Small indicator in the header showing bridge connection status */
@@ -152,6 +158,9 @@ export default function App() {
             {activeView === 'emergence' && <EmergenceView />}
             {activeView === 'terminal' && <TerminalView />}
             {activeView === 'strategy' && <StrategyView />}
+            {activeView === 'diagrams' && <DiagramsView />}
+            {activeView === 'logs' && <LogsView />}
+            {activeView === 'docs' && <DocsView />}
           </motion.div>
         </AnimatePresence>
       </main>

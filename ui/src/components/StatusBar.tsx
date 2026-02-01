@@ -11,6 +11,9 @@ const VIEW_LABELS: Record<ViewId, string> = {
   terminal: '💻 Terminal',
   gantt: '📊 Gantt',
   strategy: '🎯 Strategy',
+  docs: '📄 Docs',
+  diagrams: '📐 Diagrams',
+  logs: '📜 Logs',
 }
 
 export const StatusBar = memo(function StatusBar() {

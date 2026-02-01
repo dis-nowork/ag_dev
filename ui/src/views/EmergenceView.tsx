@@ -1,4 +1,4 @@
-import { memo, useMemo, useCallback } from 'react'
+import { memo, useMemo } from 'react'
 import {
   ReactFlow,
   Background,
@@ -10,8 +10,36 @@ import {
   Position,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import dagre from '@dagrejs/dagre'
 import { useAgentStore } from '../stores/agentStore'
+import { useUIStore } from '../stores/uiStore'
 import { AGENTS, SQUADS, getSquadColor, colors } from '../lib/theme'
+
+const NODE_WIDTH = 140
+const NODE_HEIGHT = 50
+
+function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 40 })
+
+  nodes.forEach(node => {
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  })
+  edges.forEach(edge => {
+    g.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(g)
+
+  return nodes.map(node => {
+    const pos = g.node(node.id)
+    return {
+      ...node,
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+    }
+  })
+}
 
 function buildGraph(agents: Record<string, any>) {
   const nodes: Node[] = []
@@ -20,7 +48,7 @@ function buildGraph(agents: Record<string, any>) {
   // Center node — Project
   nodes.push({
     id: 'project',
-    position: { x: 400, y: 50 },
+    position: { x: 0, y: 0 },
     data: { label: '🎯 Project' },
     style: {
       backgroundColor: colors.bg.surfaceHover,
@@ -35,18 +63,11 @@ function buildGraph(agents: Record<string, any>) {
   })
 
   // Squad nodes
-  const squadPositions = {
-    builders: { x: 100, y: 200 },
-    thinkers: { x: 350, y: 200 },
-    guardians: { x: 600, y: 200 },
-    creators: { x: 850, y: 200 },
-  }
-
   Object.entries(SQUADS).forEach(([squadId, squad]) => {
     const sc = getSquadColor(squadId as any)
     nodes.push({
       id: `squad-${squadId}`,
-      position: squadPositions[squadId as keyof typeof squadPositions],
+      position: { x: 0, y: 0 },
       data: { label: `${squad.icon} ${squad.label}` },
       style: {
         backgroundColor: sc.bg,
@@ -71,21 +92,18 @@ function buildGraph(agents: Record<string, any>) {
   })
 
   // Agent nodes
-  AGENTS.forEach((agent, i) => {
+  AGENTS.forEach((agent) => {
     const sc = getSquadColor(agent.squad)
     const state = agents[agent.id]
     const isActive = state?.status === 'working'
     const isDone = state?.status === 'done'
-    const squadPos = squadPositions[agent.squad]
-    const agentsInSquad = AGENTS.filter(a => a.squad === agent.squad)
-    const indexInSquad = agentsInSquad.indexOf(agent)
-    const xOffset = (indexInSquad - (agentsInSquad.length - 1) / 2) * 140
 
     nodes.push({
       id: `agent-${agent.id}`,
-      position: { x: squadPos.x + xOffset, y: 350 },
+      position: { x: 0, y: 0 },
       data: {
         label: `${agent.icon} ${agent.shortName}\n${state?.status || 'idle'}`,
+        agentId: agent.id,
       },
       style: {
         backgroundColor: isActive ? sc.bg : colors.bg.surface,
@@ -97,6 +115,7 @@ function buildGraph(agents: Record<string, any>) {
         fontWeight: 500,
         textAlign: 'center' as const,
         whiteSpace: 'pre-line' as const,
+        cursor: 'pointer',
       },
       targetPosition: Position.Top,
       sourcePosition: Position.Bottom,
@@ -111,7 +130,7 @@ function buildGraph(agents: Record<string, any>) {
     })
   })
 
-  // Detect collaboration patterns
+  // Detect collaboration patterns (cross-squad active agents)
   const activeAgents = AGENTS.filter(a => agents[a.id]?.status === 'working')
   for (let i = 0; i < activeAgents.length; i++) {
     for (let j = i + 1; j < activeAgents.length; j++) {
@@ -128,20 +147,30 @@ function buildGraph(agents: Record<string, any>) {
     }
   }
 
-  return { nodes, edges }
+  // Apply dagre layout
+  const layoutedNodes = applyDagreLayout(nodes, edges)
+  return { nodes: layoutedNodes, edges }
 }
 
 export const EmergenceView = memo(function EmergenceView() {
   const { agents } = useAgentStore()
+  const { selectAgent } = useUIStore()
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(agents), [agents])
   const [nodes, , onNodesChange] = useNodesState(initialNodes)
   const [edges, , onEdgesChange] = useEdgesState(initialEdges)
 
-  // Patterns
   const activeCount = Object.values(agents).filter(a => a.status === 'working').length
   const doneCount = Object.values(agents).filter(a => a.status === 'done').length
   const errorCount = Object.values(agents).filter(a => a.status === 'error').length
+
+  // Identify bottlenecks: agents that are blocking others (done agents whose dependents are waiting)
+  const blockedCount = Object.values(agents).filter(a => a.status === 'error' || a.status === 'paused').length
+
+  const onNodeClick = (_: any, node: Node) => {
+    const agentId = node.data?.agentId as string
+    if (agentId) selectAgent(agentId)
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -153,6 +182,7 @@ export const EmergenceView = memo(function EmergenceView() {
           <span>⚡ {activeCount} active</span>
           <span>✅ {doneCount} done</span>
           {errorCount > 0 && <span style={{ color: colors.status.error }}>❌ {errorCount} errors</span>}
+          {blockedCount > 0 && <span style={{ color: colors.status.blocked }}>⚠️ {blockedCount} blocked</span>}
         </div>
       </div>
 
@@ -162,14 +192,13 @@ export const EmergenceView = memo(function EmergenceView() {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
           fitView
           proOptions={{ hideAttribution: true }}
           style={{ background: colors.bg.primary }}
         >
           <Background color={colors.bg.border} gap={20} size={1} />
-          <Controls
-            style={{ backgroundColor: colors.bg.surface, borderColor: colors.bg.border }}
-          />
+          <Controls />
         </ReactFlow>
       </div>
 
@@ -182,7 +211,8 @@ export const EmergenceView = memo(function EmergenceView() {
           {activeCount > 2 && <span>⚡ High activity: {activeCount} agents working simultaneously</span>}
           {doneCount > 6 && <span>📈 Good progress: {doneCount}/12 agents completed</span>}
           {errorCount > 0 && <span>🔴 Attention: {errorCount} agent(s) with errors</span>}
-          {activeCount === 0 && doneCount === 0 && <span>💤 All agents idle — start a task to see the map come alive</span>}
+          {blockedCount > 0 && <span>🚧 Bottleneck: {blockedCount} agent(s) blocked — may be holding up dependencies</span>}
+          {activeCount === 0 && doneCount === 0 && <span>💤 All agents idle — click an agent node to inspect, or start a task</span>}
         </div>
       </div>
     </div>

@@ -697,6 +697,79 @@ app.get('/api/timeline', (req, res) => {
 });
 
 // ═══════════════════════════════════════
+// GANTT TASKS — Configurable workflow for Gantt view
+// ═══════════════════════════════════════
+app.get('/api/gantt/tasks', (req, res) => {
+  // Default workflow definition (can be overridden by a gantt-workflow.json file)
+  const GANTT_WORKFLOW_FILE = path.join(__dirname, 'gantt-workflow.json');
+  let workflow = null;
+
+  try {
+    if (fs.existsSync(GANTT_WORKFLOW_FILE)) {
+      workflow = JSON.parse(fs.readFileSync(GANTT_WORKFLOW_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.error('  ⚠ Failed to load gantt-workflow.json:', e.message);
+  }
+
+  if (!workflow) {
+    // Derive from default AIOS workflow + agent states
+    workflow = [
+      { id: 'brief', agentId: 'analyst', label: 'Project Brief', startDay: 0, duration: 2, dependencies: [] },
+      { id: 'prd', agentId: 'pm', label: 'PRD', startDay: 2, duration: 3, dependencies: ['brief'] },
+      { id: 'ux-spec', agentId: 'ux-design-expert', label: 'UX Spec', startDay: 3, duration: 3, dependencies: ['prd'] },
+      { id: 'architecture', agentId: 'architect', label: 'Architecture', startDay: 4, duration: 3, dependencies: ['prd'] },
+      { id: 'validation', agentId: 'po', label: 'PO Validation', startDay: 7, duration: 1, dependencies: ['prd', 'ux-spec', 'architecture'] },
+      { id: 'sharding', agentId: 'sm', label: 'Task Sharding', startDay: 8, duration: 2, dependencies: ['validation'] },
+      { id: 'db-design', agentId: 'data-engineer', label: 'Database Design', startDay: 8, duration: 2, dependencies: ['architecture'] },
+      { id: 'dev-sprint', agentId: 'dev', label: 'Development Sprint', startDay: 10, duration: 5, dependencies: ['sharding', 'db-design'] },
+      { id: 'qa-review', agentId: 'qa', label: 'QA & Testing', startDay: 12, duration: 3, dependencies: ['dev-sprint'] },
+      { id: 'devops-deploy', agentId: 'devops', label: 'CI/CD & Deploy', startDay: 14, duration: 2, dependencies: ['qa-review'] },
+    ];
+  }
+
+  // Enrich with agent state information
+  const enriched = workflow.map(task => {
+    const agentState = state.agents[task.agentId] || {};
+    return {
+      ...task,
+      agentStatus: agentState.status || 'idle',
+      agentProgress: agentState.progress || 0,
+    };
+  });
+
+  res.json({ tasks: enriched });
+});
+
+// ═══════════════════════════════════════
+// LOGS — Gateway logs for LogsView
+// ═══════════════════════════════════════
+app.get('/api/logs', (req, res) => {
+  const { type, agent, limit: limitStr } = req.query;
+  const limit = parseInt(limitStr) || 200;
+
+  let events = (state.timeline || []).slice(-limit);
+
+  // Filter by type category
+  if (type && type !== 'all') {
+    events = events.filter(e => {
+      if (type === 'agent') return e.type && e.type.startsWith('agent_');
+      if (type === 'chat') return e.type && e.type.startsWith('chat');
+      if (type === 'error') return e.type && (e.type.includes('error') || e.type === 'error');
+      if (type === 'system') return e.type && !e.type.startsWith('agent_') && !e.type.startsWith('chat') && !e.type.includes('error');
+      return true;
+    });
+  }
+
+  // Filter by agent
+  if (agent) {
+    events = events.filter(e => e.agentId === agent);
+  }
+
+  res.json({ events });
+});
+
+// ═══════════════════════════════════════
 // WORKFLOWS
 // ═══════════════════════════════════════
 app.get('/api/workflows', (req, res) => {

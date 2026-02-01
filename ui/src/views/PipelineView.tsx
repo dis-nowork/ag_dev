@@ -1,5 +1,23 @@
-import { memo, useState } from 'react'
+import { memo, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { useDroppable } from '@dnd-kit/core'
+import { GripVertical } from 'lucide-react'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
 import { AGENTS, getAgentMeta, getSquadColor, colors } from '../lib/theme'
 
@@ -18,8 +36,16 @@ const COLUMNS = [
   { id: 'done', label: 'Done', icon: '✅' },
 ] as const
 
+type ColumnId = typeof COLUMNS[number]['id']
+
 export const PipelineView = memo(function PipelineView() {
   const { agents } = useAgentStore()
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [overrides, setOverrides] = useState<Record<string, ColumnId>>({})
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
 
   // Derive tasks from agent states
   const tasks: TaskCard[] = AGENTS.map(a => {
@@ -57,8 +83,76 @@ export const PipelineView = memo(function PipelineView() {
     })
   })
 
-  const allTasks = [...checklistTasks]
+  const allTasks = [...tasks, ...checklistTasks]
   const totalDone = allTasks.filter(t => t.status === 'done').length
+
+  // Apply overrides
+  const getTaskStatus = useCallback((task: TaskCard): ColumnId => {
+    return overrides[task.id] || task.status
+  }, [overrides])
+
+  const getColumnTasks = useCallback((colId: ColumnId) => {
+    return allTasks.filter(t => getTaskStatus(t) === colId)
+  }, [allTasks, getTaskStatus])
+
+  const activeTask = activeId ? allTasks.find(t => t.id === activeId) : null
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id))
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+    if (!over) return
+
+    const taskId = String(active.id)
+    // Determine target column: could be a column droppable or another card in a column
+    let targetCol: ColumnId | null = null
+
+    // Check if dropped on a column
+    const colIds: string[] = COLUMNS.map(c => c.id)
+    if (colIds.includes(String(over.id))) {
+      targetCol = String(over.id) as ColumnId
+    } else {
+      // Dropped on a card — find which column that card is in
+      const overTask = allTasks.find(t => t.id === String(over.id))
+      if (overTask) {
+        targetCol = getTaskStatus(overTask)
+      }
+    }
+
+    if (!targetCol) return
+    const task = allTasks.find(t => t.id === taskId)
+    if (!task) return
+    const currentStatus = getTaskStatus(task)
+    if (currentStatus === targetCol) return
+
+    // Update local override
+    setOverrides(prev => ({ ...prev, [taskId]: targetCol }))
+
+    // If task has an agentId, call API to update state
+    if (task.agentId) {
+      const stateMap: Record<ColumnId, string> = {
+        backlog: 'idle',
+        in_progress: 'working',
+        review: 'paused',
+        done: 'done',
+      }
+      fetch(`/api/agents/${task.agentId}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: stateMap[targetCol] }),
+      }).catch(() => {
+        // Revert on failure
+        setOverrides(prev => {
+          const next = { ...prev }
+          delete next[taskId]
+          return next
+        })
+      })
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden p-6">
@@ -76,76 +170,163 @@ export const PipelineView = memo(function PipelineView() {
         </div>
       </div>
 
-      {/* Kanban columns */}
-      <div className="flex-1 flex gap-4 overflow-x-auto">
-        {COLUMNS.map(col => {
-          const colTasks = allTasks.filter(t => t.status === col.id)
-          return (
-            <div key={col.id} className="flex-1 min-w-[220px] flex flex-col">
-              {/* Column header */}
-              <div
-                className="flex items-center justify-between px-3 py-2 rounded-t-lg border-b"
-                style={{ backgroundColor: colors.bg.surface, borderColor: colors.bg.border }}
-              >
-                <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
-                  {col.icon} {col.label}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: colors.bg.surfaceHover, color: colors.text.secondary }}>
-                  {colTasks.length}
-                </span>
-              </div>
-
-              {/* Cards */}
-              <div
-                className="flex-1 overflow-y-auto space-y-2 p-2 rounded-b-lg border border-t-0"
-                style={{ backgroundColor: colors.bg.primary + '80', borderColor: colors.bg.border }}
-              >
-                {colTasks.map(task => (
-                  <TaskCardEl key={task.id} task={task} />
-                ))}
+      {/* Kanban columns with DnD */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex-1 flex gap-4 overflow-x-auto">
+          {COLUMNS.map(col => {
+            const colTasks = getColumnTasks(col.id)
+            return (
+              <DroppableColumn key={col.id} id={col.id} label={col.label} icon={col.icon} count={colTasks.length}>
+                <SortableContext items={colTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                  {colTasks.map(task => (
+                    <SortableTaskCard key={task.id} task={task} />
+                  ))}
+                </SortableContext>
                 {colTasks.length === 0 && (
                   <p className="text-[10px] text-center py-4" style={{ color: colors.text.muted }}>
                     No tasks
                   </p>
                 )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+              </DroppableColumn>
+            )
+          })}
+        </div>
+
+        <DragOverlay>
+          {activeTask ? <TaskCardEl task={activeTask} isDragging /> : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 })
 
-function TaskCardEl({ task }: { task: TaskCard }) {
+/** Droppable column wrapper */
+function DroppableColumn({
+  id,
+  label,
+  icon,
+  count,
+  children,
+}: {
+  id: string
+  label: string
+  icon: string
+  count: number
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+
+  return (
+    <div className="flex-1 min-w-[220px] flex flex-col" ref={setNodeRef}>
+      {/* Column header */}
+      <div
+        className="flex items-center justify-between px-3 py-2 rounded-t-lg border-b"
+        style={{ backgroundColor: colors.bg.surface, borderColor: colors.bg.border }}
+      >
+        <span className="text-xs font-semibold" style={{ color: colors.text.primary }}>
+          {icon} {label}
+        </span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+          style={{ backgroundColor: colors.bg.surfaceHover, color: colors.text.secondary }}>
+          {count}
+        </span>
+      </div>
+
+      {/* Cards area */}
+      <div
+        className="flex-1 overflow-y-auto space-y-2 p-2 rounded-b-lg border border-t-0 transition-colors"
+        style={{
+          backgroundColor: isOver ? colors.accent + '08' : colors.bg.primary + '80',
+          borderColor: isOver ? colors.accent + '40' : colors.bg.border,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** Sortable card wrapper */
+function SortableTaskCard({ task }: { task: TaskCard }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCardEl task={task} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  )
+}
+
+function TaskCardEl({
+  task,
+  isDragging,
+  dragHandleProps,
+}: {
+  task: TaskCard
+  isDragging?: boolean
+  dragHandleProps?: Record<string, unknown>
+}) {
   const meta = task.agentId ? getAgentMeta(task.agentId) : null
   const squadColor = meta ? getSquadColor(meta.squad) : null
 
   return (
     <motion.div
-      className="rounded-lg border p-2.5"
-      style={{ backgroundColor: colors.bg.surface, borderColor: colors.bg.border }}
-      whileHover={{ borderColor: squadColor?.main + '40' || colors.bg.borderLight }}
-      layout
+      className="rounded-lg border p-2.5 flex items-start gap-2"
+      style={{
+        backgroundColor: isDragging ? colors.bg.surfaceActive : colors.bg.surface,
+        borderColor: isDragging ? colors.accent + '60' : colors.bg.border,
+        boxShadow: isDragging ? `0 8px 24px ${colors.accent}20` : 'none',
+      }}
+      whileHover={!isDragging ? { borderColor: squadColor?.main + '40' || colors.bg.borderLight } : undefined}
+      layout={!isDragging}
     >
-      <p className="text-xs font-medium mb-1.5 line-clamp-2" style={{ color: colors.text.primary }}>
-        {task.title}
-      </p>
-      <div className="flex items-center justify-between">
-        {meta && (
-          <span
-            className="text-[9px] px-1.5 py-0.5 rounded font-medium"
-            style={{ backgroundColor: squadColor?.bg, color: squadColor?.main }}
-          >
-            {meta.icon} {meta.shortName}
-          </span>
-        )}
-        {task.progress > 0 && task.progress < 100 && (
-          <div className="w-12 h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.bg.border }}>
-            <div className="h-full rounded-full" style={{ backgroundColor: squadColor?.main || colors.accent, width: `${task.progress}%` }} />
-          </div>
-        )}
+      {/* Drag handle */}
+      {dragHandleProps && (
+        <div
+          className="flex-shrink-0 cursor-grab active:cursor-grabbing pt-0.5 opacity-40 hover:opacity-80 transition-opacity"
+          {...dragHandleProps}
+        >
+          <GripVertical size={14} style={{ color: colors.text.muted }} />
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium mb-1.5 line-clamp-2" style={{ color: colors.text.primary }}>
+          {task.title}
+        </p>
+        <div className="flex items-center justify-between">
+          {meta && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+              style={{ backgroundColor: squadColor?.bg, color: squadColor?.main }}
+            >
+              {meta.icon} {meta.shortName}
+            </span>
+          )}
+          {task.progress > 0 && task.progress < 100 && (
+            <div className="w-12 h-1 rounded-full overflow-hidden" style={{ backgroundColor: colors.bg.border }}>
+              <div className="h-full rounded-full" style={{ backgroundColor: squadColor?.main || colors.accent, width: `${task.progress}%` }} />
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   )
