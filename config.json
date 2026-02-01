@@ -1,5 +1,16 @@
 {
-  "projectRoot": "/root/clawd/phantom_id",
-  "port": 80,
-  "name": "Phantom ID"
+  "port": 3000,
+  "projectRoot": "",
+  "name": "AG Dev",
+  "gateway": {
+    "url": "ws://127.0.0.1:18789",
+    "token": ""
+  },
+  "agents": {
+    "definitionsDir": "./core/agents",
+    "autoSpawn": false
+  },
+  "auth": {
+    "token": "46090d46-db13-44de-b3d3-046b76baa058"
+  }
 }

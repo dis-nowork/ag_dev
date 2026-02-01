@@ -1,37 +1,66 @@
 /**
  * AG Dev Server — The Armor Engine
  * 
- * This isn't just an API server. It's the bridge between:
+ * Bridge between:
  * - The Command Center UI (what the human sees)
- * - AIOS agents (the specialized workers)
- * - Clawdbot/AI engine (the brain that operates them)
+ * - Clawdbot Gateway (the brain that operates agents)
  * 
- * The server manages:
+ * Manages:
  * 1. Agent state (status, checklist, progress, output)
  * 2. Real-time updates via SSE
  * 3. Chat routing (main + per-agent)
  * 4. File/document operations
- * 5. Git operations
- * 6. Workflow orchestration state
+ * 5. Git operations (safe exec)
+ * 6. Gateway bridge integration
  */
 
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { execSync, spawn } = require('child_process');
+const crypto = require('crypto');
+const { execFileSync, execSync, spawn } = require('child_process');
 const { ClawdbotBridge } = require('./ws-bridge');
 
 const app = express();
 
 // ─── Config ───
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
-let config = { port: 80, projectRoot: path.join(__dirname, '..', '..'), name: 'AG Dev' };
-try { if (fs.existsSync(CONFIG_PATH)) config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) }; } catch(e) {}
+let config = {
+  port: 3000,
+  projectRoot: '',
+  name: 'AG Dev',
+  gateway: { url: 'ws://127.0.0.1:18789', token: '' },
+  agents: { definitionsDir: './core/agents', autoSpawn: false },
+  auth: { token: '' }
+};
+
+try {
+  if (fs.existsSync(CONFIG_PATH)) {
+    const loaded = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    config = { ...config, ...loaded, gateway: { ...config.gateway, ...loaded.gateway }, agents: { ...config.agents, ...loaded.agents }, auth: { ...config.auth, ...loaded.auth } };
+  }
+} catch (e) {
+  console.error('  ⚠ Failed to load config.json:', e.message);
+}
+
+// Auto-generate auth token if not set
+if (!config.auth.token) {
+  config.auth.token = crypto.randomUUID();
+  console.log(`  🔑 Generated auth token: ${config.auth.token}`);
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+  } catch (e) {
+    console.error('  ⚠ Failed to save generated token to config.json:', e.message);
+  }
+}
 
 const PORT = process.env.PORT || config.port;
-const PROJECT_ROOT = config.projectRoot;
+const PROJECT_ROOT = config.projectRoot || path.join(__dirname, '..');
 const CORE_DIR = path.join(__dirname, '..', 'core');
+const AGENTS_DIR = config.agents.definitionsDir
+  ? path.resolve(path.join(__dirname, '..'), config.agents.definitionsDir)
+  : path.join(CORE_DIR, 'agents');
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -43,6 +72,29 @@ const staticDir = fs.existsSync(uiDist) ? uiDist : uiPublic;
 app.use(express.static(staticDir));
 
 // ═══════════════════════════════════════
+// AUTH MIDDLEWARE
+// ═══════════════════════════════════════
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header. Use: Bearer <token>' });
+  }
+  const token = authHeader.slice(7);
+  if (token !== config.auth.token) {
+    return res.status(403).json({ error: 'Invalid auth token' });
+  }
+  next();
+}
+
+// Apply auth middleware to all POST/PUT/DELETE routes
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api')) {
+    return requireAuth(req, res, next);
+  }
+  next();
+});
+
+// ═══════════════════════════════════════
 // STATE MANAGEMENT
 // ═══════════════════════════════════════
 const STATE_FILE = path.join(__dirname, 'state.json');
@@ -50,15 +102,25 @@ let state = {
   agents: {},
   chat: { messages: [] },
   agentChats: {},
-  workflow: { currentPhase: 0, started: null },
-  timeline: [] // Event log
+  workflow: {},
+  timeline: []
 };
 
 function loadState() {
-  try { if (fs.existsSync(STATE_FILE)) state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) }; } catch(e) {}
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      state = { ...state, ...JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) };
+    }
+  } catch (e) {
+    console.error('  ⚠ Failed to load state.json:', e.message);
+  }
 }
 function saveState() {
-  try { fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); } catch(e) {}
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  } catch (e) {
+    console.error('  ⚠ Failed to save state.json:', e.message);
+  }
 }
 loadState();
 
@@ -89,7 +151,7 @@ app.get('/api/sse', (req, res) => {
 
 function broadcast(type, data) {
   const msg = `data: ${JSON.stringify({ type, ...data })}\n\n`;
-  clients.forEach(c => { try { c.write(msg); } catch(e) {} });
+  clients.forEach(c => { try { c.write(msg); } catch (e) {} });
 }
 
 // ═══════════════════════════════════════
@@ -97,40 +159,93 @@ function broadcast(type, data) {
 // ═══════════════════════════════════════
 app.get('/api/project', (req, res) => {
   try {
-    const gitLog = execSync('git log --oneline -30', { cwd: PROJECT_ROOT, timeout: 5000 }).toString().trim().split('\n');
-    const branch = execSync('git branch --show-current', { cwd: PROJECT_ROOT, timeout: 5000 }).toString().trim();
-    const status = execSync('git status --porcelain', { cwd: PROJECT_ROOT, timeout: 5000 }).toString().trim();
+    const gitArgs = { cwd: PROJECT_ROOT, timeout: 5000 };
+    const gitLog = execFileSync('git', ['log', '--oneline', '-30'], gitArgs).toString().trim().split('\n');
+    const branch = execFileSync('git', ['branch', '--show-current'], gitArgs).toString().trim();
+    const status = execFileSync('git', ['status', '--porcelain'], gitArgs).toString().trim();
     const changedFiles = status ? status.split('\n').length : 0;
-    res.json({ name: config.name, branch, commits: gitLog, changedFiles, projectRoot: PROJECT_ROOT });
+    res.json({
+      name: config.name,
+      branch,
+      commits: gitLog,
+      changedFiles,
+      projectRoot: PROJECT_ROOT,
+      bridgeConnected: bridge.connected
+    });
   } catch (e) {
-    res.json({ name: config.name, branch: 'unknown', commits: [], changedFiles: 0, projectRoot: PROJECT_ROOT });
+    res.json({
+      name: config.name,
+      branch: 'unknown',
+      commits: [],
+      changedFiles: 0,
+      projectRoot: PROJECT_ROOT,
+      bridgeConnected: bridge.connected
+    });
   }
 });
 
 // ═══════════════════════════════════════
 // AGENTS — List, state, control
 // ═══════════════════════════════════════
-app.get('/api/agents', (req, res) => {
-  const agentsDir = path.join(CORE_DIR, 'agents');
+
+/**
+ * Parse agent .md file to extract metadata
+ */
+function parseAgentMd(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const id = path.basename(filePath, '.md');
+    const nm = content.match(/name:\s*(.+)/);
+    const tt = content.match(/title:\s*(.+)/);
+    const ic = content.match(/icon:\s*(.+)/);
+    const sq = content.match(/squad:\s*(.+)/);
+    const rl = content.match(/role:\s*(.+)/);
+    return {
+      id,
+      name: nm ? nm[1].trim() : id,
+      title: tt ? tt[1].trim() : '',
+      icon: ic ? ic[1].trim() : '🤖',
+      squad: sq ? sq[1].trim() : 'default',
+      role: rl ? rl[1].trim() : '',
+      definitionPath: filePath
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load all agent definitions from disk
+ */
+function loadAgentDefinitions() {
   const agents = [];
-  if (fs.existsSync(agentsDir)) {
-    fs.readdirSync(agentsDir).forEach(f => {
+  if (fs.existsSync(AGENTS_DIR)) {
+    fs.readdirSync(AGENTS_DIR).forEach(f => {
       if (!f.endsWith('.md')) return;
-      const content = fs.readFileSync(path.join(agentsDir, f), 'utf8');
-      const id = f.replace('.md', '');
-      const nm = content.match(/name:\s*(.+)/);
-      const tt = content.match(/title:\s*(.+)/);
-      const ic = content.match(/icon:\s*(.+)/);
-      agents.push({
-        id,
-        name: nm ? nm[1].trim() : id,
-        title: tt ? tt[1].trim() : '',
-        icon: ic ? ic[1].trim() : '🤖',
-        state: state.agents[id] || { status: 'idle', currentTask: null, checklist: [], progress: 0 }
-      });
+      const meta = parseAgentMd(path.join(AGENTS_DIR, f));
+      if (meta) agents.push(meta);
     });
   }
+  return agents;
+}
+
+app.get('/api/agents', (req, res) => {
+  const agents = loadAgentDefinitions().map(a => ({
+    ...a,
+    state: state.agents[a.id] || { status: 'idle', currentTask: null, checklist: [], progress: 0 }
+  }));
   res.json({ agents });
+});
+
+// Agent metadata + squads (for UI to consume instead of hardcoded theme)
+app.get('/api/agents/meta', (req, res) => {
+  const agents = loadAgentDefinitions();
+  const squads = {};
+  agents.forEach(a => {
+    if (!squads[a.squad]) squads[a.squad] = { id: a.squad, agents: [] };
+    squads[a.squad].agents.push(a.id);
+  });
+  res.json({ agents, squads: Object.values(squads) });
 });
 
 // Agent state update
@@ -153,6 +268,13 @@ app.post('/api/agents/:id/pause', (req, res) => {
   saveState();
   broadcast('agent_update', { agentId: id, state: state.agents[id] });
   logEvent('agent_paused', { agentId: id });
+
+  // Also send pause instruction to real session if connected
+  const sessionKey = state.agents[id]?.sessionKey;
+  if (sessionKey && bridge.connected) {
+    bridge.sendToSession(sessionKey, '/stop').catch(() => {});
+  }
+
   res.json({ success: true });
 });
 
@@ -168,9 +290,222 @@ app.post('/api/agents/:id/resume', (req, res) => {
 
 // Agent definition (full markdown)
 app.get('/api/agents/:id/definition', (req, res) => {
-  const fp = path.join(CORE_DIR, 'agents', `${req.params.id}.md`);
+  const fp = path.join(AGENTS_DIR, `${req.params.id}.md`);
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
   res.json({ content: fs.readFileSync(fp, 'utf8') });
+});
+
+// ═══════════════════════════════════════
+// AGENT SPAWN — Create real Clawdbot session
+// ═══════════════════════════════════════
+app.post('/api/agents/:id/spawn', async (req, res) => {
+  const { id } = req.params;
+  const { task, model } = req.body;
+
+  // Read agent definition
+  const defPath = path.join(AGENTS_DIR, `${id}.md`);
+  if (!fs.existsSync(defPath)) {
+    return res.status(404).json({ error: `Agent definition not found: ${id}` });
+  }
+
+  const agentDef = fs.readFileSync(defPath, 'utf8');
+
+  // Read strategy directive if exists
+  let directive = '';
+  try {
+    if (fs.existsSync(STRATEGY_FILE)) {
+      const strat = JSON.parse(fs.readFileSync(STRATEGY_FILE, 'utf8'));
+      directive = strat.directives?.[id]?.text || '';
+    }
+  } catch {}
+
+  // Compose the full task
+  const parts = [];
+  if (directive) parts.push(`## Current Directive\n${directive}`);
+  if (task) parts.push(`## Task\n${task}`);
+  if (!task && !directive) parts.push('## Task\nAwaiting instructions.');
+
+  const fullTask = parts.join('\n\n');
+
+  if (!bridge.connected) {
+    // Standalone mode — just update state locally
+    if (!state.agents[id]) state.agents[id] = {};
+    state.agents[id].status = 'working';
+    state.agents[id].currentTask = task || 'Spawned (standalone mode)';
+    state.agents[id].sessionKey = null;
+    saveState();
+    broadcast('agent_update', { agentId: id, state: state.agents[id] });
+    logEvent('agent_spawn_standalone', { agentId: id, task });
+    return res.json({ success: true, standalone: true, message: 'Agent spawned in standalone mode (gateway not connected)' });
+  }
+
+  try {
+    const result = await bridge.spawnSession(fullTask, {
+      label: `ag-dev:${id}`,
+      model: model || undefined,
+      systemPrompt: agentDef
+    });
+
+    if (result.ok) {
+      const sessionKey = result.session?.key || result.session?.sessionKey;
+      if (!state.agents[id]) state.agents[id] = {};
+      state.agents[id].status = 'working';
+      state.agents[id].currentTask = task || 'Spawned';
+      state.agents[id].sessionKey = sessionKey;
+      saveState();
+      broadcast('agent_update', { agentId: id, state: state.agents[id] });
+      logEvent('agent_spawned', { agentId: id, sessionKey, task });
+
+      // Subscribe to lifecycle events for this session
+      if (sessionKey) {
+        bridge.subscribeToSession(sessionKey, (evt) => {
+          broadcastToTerminal(id, evt);
+          broadcast('clawdbot_event', { agentId: id, ...evt });
+        });
+      }
+
+      res.json({ success: true, sessionKey, session: result.session });
+    } else {
+      res.status(500).json({ error: result.error || 'Failed to spawn session' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// AGENT SEND — Send message to agent's session
+// ═══════════════════════════════════════
+app.post('/api/agents/:id/send', async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  if (!message) return res.status(400).json({ error: 'No message' });
+
+  const sessionKey = state.agents[id]?.sessionKey;
+  if (!sessionKey) {
+    return res.status(400).json({ error: `Agent ${id} has no active session. Spawn first.` });
+  }
+
+  if (!bridge.connected) {
+    return res.status(503).json({ error: 'Gateway not connected' });
+  }
+
+  try {
+    const result = await bridge.sendToSession(sessionKey, message);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// AGENT HISTORY — Get session history
+// ═══════════════════════════════════════
+app.get('/api/agents/:id/history', async (req, res) => {
+  const { id } = req.params;
+  const sessionKey = state.agents[id]?.sessionKey;
+
+  if (!sessionKey) {
+    return res.json({ history: [], message: 'No active session' });
+  }
+
+  if (!bridge.connected) {
+    return res.json({ history: [], message: 'Gateway not connected' });
+  }
+
+  try {
+    const result = await bridge.getSessionHistory(sessionKey);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message, history: [] });
+  }
+});
+
+// ═══════════════════════════════════════
+// AGENT BATCH — Batch operations
+// ═══════════════════════════════════════
+app.post('/api/agents/batch', async (req, res) => {
+  const { operation, agentIds, task, model } = req.body;
+
+  if (!operation) return res.status(400).json({ error: 'No operation specified' });
+
+  const results = {};
+  const targetAgents = agentIds || Object.keys(state.agents);
+
+  switch (operation) {
+    case 'pause-all': {
+      for (const id of targetAgents) {
+        if (!state.agents[id]) state.agents[id] = {};
+        state.agents[id].status = 'paused';
+        const sessionKey = state.agents[id]?.sessionKey;
+        if (sessionKey && bridge.connected) {
+          try { await bridge.sendToSession(sessionKey, '/stop'); } catch {}
+        }
+        results[id] = { success: true, status: 'paused' };
+      }
+      saveState();
+      broadcast('state', { agents: state.agents });
+      logEvent('batch_pause_all', { count: targetAgents.length });
+      break;
+    }
+    case 'resume-all': {
+      for (const id of targetAgents) {
+        if (!state.agents[id]) state.agents[id] = {};
+        if (state.agents[id].status === 'paused') {
+          state.agents[id].status = 'working';
+          results[id] = { success: true, status: 'working' };
+        } else {
+          results[id] = { success: true, status: state.agents[id].status, skipped: true };
+        }
+      }
+      saveState();
+      broadcast('state', { agents: state.agents });
+      logEvent('batch_resume_all', { count: targetAgents.length });
+      break;
+    }
+    case 'spawn-squad': {
+      const agents = loadAgentDefinitions();
+      const squad = req.body.squad;
+      const toSpawn = squad
+        ? agents.filter(a => a.squad === squad)
+        : agents.filter(a => agentIds?.includes(a.id));
+
+      for (const agent of toSpawn) {
+        try {
+          if (!bridge.connected) {
+            if (!state.agents[agent.id]) state.agents[agent.id] = {};
+            state.agents[agent.id].status = 'working';
+            state.agents[agent.id].currentTask = task || 'Squad spawn (standalone)';
+            results[agent.id] = { success: true, standalone: true };
+          } else {
+            const defContent = fs.readFileSync(agent.definitionPath, 'utf8');
+            const result = await bridge.spawnSession(task || 'Awaiting instructions.', {
+              label: `ag-dev:${agent.id}`,
+              model: model || undefined,
+              systemPrompt: defContent
+            });
+            const sessionKey = result.session?.key || result.session?.sessionKey;
+            if (!state.agents[agent.id]) state.agents[agent.id] = {};
+            state.agents[agent.id].status = 'working';
+            state.agents[agent.id].currentTask = task || 'Squad spawn';
+            state.agents[agent.id].sessionKey = sessionKey;
+            results[agent.id] = { success: result.ok, sessionKey };
+          }
+        } catch (e) {
+          results[agent.id] = { success: false, error: e.message };
+        }
+      }
+      saveState();
+      broadcast('state', { agents: state.agents });
+      logEvent('batch_spawn_squad', { squad, count: toSpawn.length });
+      break;
+    }
+    default:
+      return res.status(400).json({ error: `Unknown operation: ${operation}` });
+  }
+
+  res.json({ success: true, operation, results });
 });
 
 // ═══════════════════════════════════════
@@ -180,13 +515,35 @@ app.get('/api/chat', (req, res) => {
   res.json({ messages: (state.chat?.messages || []).slice(-200) });
 });
 
-app.post('/api/chat', (req, res) => {
+app.post('/api/chat', async (req, res) => {
   const msg = { id: Date.now(), from: 'human', text: req.body.message, time: new Date().toISOString() };
   if (!state.chat) state.chat = { messages: [] };
   state.chat.messages.push(msg);
   saveState();
   broadcast('chat', { message: msg });
   logEvent('chat_message', { from: 'human', preview: msg.text.slice(0, 50) });
+
+  // Forward to bridge for real AI processing if connected
+  if (bridge.connected) {
+    try {
+      const result = await bridge.sendMessage(req.body.message);
+      if (result.ok) {
+        const botMsg = {
+          id: Date.now(),
+          from: 'bot',
+          text: result.result?.text || result.result?.summary || '✓ Sent to Clawdbot',
+          time: new Date().toISOString()
+        };
+        state.chat.messages.push(botMsg);
+        saveState();
+        broadcast('chat', { message: botMsg });
+      }
+    } catch (e) {
+      // Non-fatal — chat still works locally
+      console.error('  ⚠ Bridge send failed:', e.message);
+    }
+  }
+
   res.json({ success: true, message: msg });
 });
 
@@ -230,34 +587,41 @@ app.get('/api/docs', (req, res) => {
     if (!fs.existsSync(dir)) return;
     fs.readdirSync(dir).forEach(f => {
       if (!f.endsWith('.md') && !f.endsWith('.yaml') && !f.endsWith('.yml')) return;
-      const stat = fs.statSync(path.join(dir, f));
-      docs.push({
-        name: f, category: cat,
-        path: path.join(dir, f),
-        relativePath: `${cat}/${f}`,
-        size: stat.size, modified: stat.mtime
-      });
+      try {
+        const stat = fs.statSync(path.join(dir, f));
+        docs.push({
+          name: f, category: cat,
+          path: path.join(dir, f),
+          relativePath: `${cat}/${f}`,
+          size: stat.size, modified: stat.mtime
+        });
+      } catch {}
     });
   };
-  
+
   // Project docs
-  scan(path.join(PROJECT_ROOT, 'docs'), 'docs');
-  scan(path.join(PROJECT_ROOT, 'brainstorm'), 'brainstorm');
-  ['stories', 'prd', 'architecture', 'guides'].forEach(s => 
-    scan(path.join(PROJECT_ROOT, 'docs', s), `docs/${s}`)
-  );
-  
-  // AIOS core docs
+  if (PROJECT_ROOT && fs.existsSync(PROJECT_ROOT)) {
+    scan(path.join(PROJECT_ROOT, 'docs'), 'docs');
+    scan(path.join(PROJECT_ROOT, 'brainstorm'), 'brainstorm');
+    ['stories', 'prd', 'architecture', 'guides'].forEach(s =>
+      scan(path.join(PROJECT_ROOT, 'docs', s), `docs/${s}`)
+    );
+  }
+
+  // Core docs
   scan(path.join(CORE_DIR, 'workflows'), 'workflows');
-  
+
   res.json({ docs });
 });
 
 app.get('/api/docs/read', (req, res) => {
   const fp = req.query.path;
   if (!fp) return res.status(400).json({ error: 'No path' });
-  try { res.json({ content: fs.readFileSync(fp, 'utf8'), path: fp }); }
-  catch(e) { res.status(404).json({ error: 'Not found' }); }
+  try {
+    res.json({ content: fs.readFileSync(fp, 'utf8'), path: fp });
+  } catch (e) {
+    res.status(404).json({ error: 'Not found' });
+  }
 });
 
 app.post('/api/docs/save', (req, res) => {
@@ -267,7 +631,9 @@ app.post('/api/docs/save', (req, res) => {
     fs.writeFileSync(fp, content, 'utf8');
     logEvent('doc_saved', { path: fp });
     res.json({ success: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════
@@ -276,39 +642,51 @@ app.post('/api/docs/save', (req, res) => {
 app.get('/api/tree', (req, res) => {
   const getTree = (dir, depth = 0, maxDepth = 3) => {
     if (depth >= maxDepth || !fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir, { withFileTypes: true })
-      .filter(e => !e.name.startsWith('.') || ['..aios-core', '.ag-dev'].includes(e.name))
-      .sort((a, b) => {
-        if (a.isDirectory() && !b.isDirectory()) return -1;
-        if (!a.isDirectory() && b.isDirectory()) return 1;
-        return a.name.localeCompare(b.name);
-      })
-      .map(e => {
-        const fp = path.join(dir, e.name);
-        if (e.isDirectory()) return { name: e.name, type: 'dir', path: fp, children: getTree(fp, depth + 1, maxDepth) };
-        return { name: e.name, type: 'file', path: fp, size: fs.statSync(fp).size };
-      });
+    try {
+      return fs.readdirSync(dir, { withFileTypes: true })
+        .filter(e => !e.name.startsWith('.') || ['..aios-core', '.ag-dev'].includes(e.name))
+        .sort((a, b) => {
+          if (a.isDirectory() && !b.isDirectory()) return -1;
+          if (!a.isDirectory() && b.isDirectory()) return 1;
+          return a.name.localeCompare(b.name);
+        })
+        .map(e => {
+          const fp = path.join(dir, e.name);
+          if (e.isDirectory()) return { name: e.name, type: 'dir', path: fp, children: getTree(fp, depth + 1, maxDepth) };
+          try {
+            return { name: e.name, type: 'file', path: fp, size: fs.statSync(fp).size };
+          } catch { return { name: e.name, type: 'file', path: fp, size: 0 }; }
+        });
+    } catch { return []; }
   };
-  res.json({ tree: getTree(PROJECT_ROOT) });
+  res.json({ tree: getTree(PROJECT_ROOT || path.join(__dirname, '..')) });
 });
 
 // ═══════════════════════════════════════
-// GIT
+// GIT — Safe exec (no command injection)
 // ═══════════════════════════════════════
 app.post('/api/git/commit', (req, res) => {
+  const message = req.body.message;
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Invalid commit message' });
+  }
   try {
-    execSync('git add -A', { cwd: PROJECT_ROOT, timeout: 10000 });
-    const r = execSync(`git commit -m "${req.body.message.replace(/"/g, '\\"')}"`, { cwd: PROJECT_ROOT, timeout: 10000 }).toString();
-    logEvent('git_commit', { message: req.body.message });
+    execFileSync('git', ['add', '-A'], { cwd: PROJECT_ROOT, timeout: 10000 });
+    const r = execFileSync('git', ['commit', '-m', message], { cwd: PROJECT_ROOT, timeout: 10000 }).toString();
+    logEvent('git_commit', { message });
     res.json({ success: true, result: r });
-  } catch(e) { res.json({ success: false, error: e.message }); }
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
 });
 
 app.get('/api/git/status', (req, res) => {
   try {
-    const status = execSync('git status --porcelain', { cwd: PROJECT_ROOT, timeout: 5000 }).toString();
+    const status = execFileSync('git', ['status', '--porcelain'], { cwd: PROJECT_ROOT, timeout: 5000 }).toString();
     res.json({ files: status.trim().split('\n').filter(Boolean) });
-  } catch(e) { res.json({ files: [] }); }
+  } catch (e) {
+    res.json({ files: [] });
+  }
 });
 
 // ═══════════════════════════════════════
@@ -327,8 +705,11 @@ app.get('/api/workflows', (req, res) => {
   if (fs.existsSync(wfDir)) {
     fs.readdirSync(wfDir).forEach(f => {
       if (f.endsWith('.yaml') || f.endsWith('.yml')) {
-        workflows.push({ name: f.replace(/\.(yaml|yml)$/, ''), file: f,
-          content: fs.readFileSync(path.join(wfDir, f), 'utf8') });
+        workflows.push({
+          name: f.replace(/\.(yaml|yml)$/, ''),
+          file: f,
+          content: fs.readFileSync(path.join(wfDir, f), 'utf8')
+        });
       }
     });
   }
@@ -344,8 +725,11 @@ app.get('/api/teams', (req, res) => {
   if (fs.existsSync(teamsDir)) {
     fs.readdirSync(teamsDir).forEach(f => {
       if (f.endsWith('.yaml') || f.endsWith('.yml')) {
-        teams.push({ name: f.replace(/\.(yaml|yml)$/, ''), file: f,
-          content: fs.readFileSync(path.join(teamsDir, f), 'utf8') });
+        teams.push({
+          name: f.replace(/\.(yaml|yml)$/, ''),
+          file: f,
+          content: fs.readFileSync(path.join(teamsDir, f), 'utf8')
+        });
       }
     });
   }
@@ -362,12 +746,38 @@ app.get('/api/health', (req, res) => {
     project: config.name,
     agents: Object.keys(state.agents).length,
     sseClients: clients.size,
-    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB'
+    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+    bridgeConnected: bridge.connected,
+    bridgeUrl: bridge.gatewayUrl
   });
 });
 
 // ═══════════════════════════════════════
-// SPA FALLBACK
+// GATEWAY STATUS — Detailed bridge info
+// ═══════════════════════════════════════
+app.get('/api/gateway/status', async (req, res) => {
+  const bridgeStatus = bridge.getStatus();
+
+  // Try to get live sessions if connected
+  let sessions = [];
+  if (bridge.connected) {
+    try {
+      const result = await bridge.listSessions();
+      if (result.ok) sessions = result.sessions;
+    } catch {}
+  }
+
+  res.json({
+    ...bridgeStatus,
+    sessions,
+    agentSessions: Object.entries(state.agents)
+      .filter(([_, a]) => a.sessionKey)
+      .map(([id, a]) => ({ agentId: id, sessionKey: a.sessionKey, status: a.status }))
+  });
+});
+
+// ═══════════════════════════════════════
+// SPA FALLBACK (first one)
 // ═══════════════════════════════════════
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) return next();
@@ -380,31 +790,44 @@ app.use((req, res, next) => {
 // CLAWDBOT BRIDGE — Connect to the brain
 // ═══════════════════════════════════════
 const bridge = new ClawdbotBridge({
+  gatewayUrl: config.gateway.url,
+  token: config.gateway.token || undefined,
   onEvent: (event) => {
     broadcast('clawdbot_event', { event });
   },
   onAgentReply: (reply) => {
     if (reply.type === 'delta') {
-      // Stream agent text to UI
       broadcast('agent_stream', { text: reply.text, sessionKey: reply.sessionKey });
     }
     if (reply.type === 'complete') {
-      // Agent finished - push to chat
       const msg = { id: Date.now(), from: 'bot', text: reply.summary || '✓ Complete', time: new Date().toISOString() };
       if (!state.chat) state.chat = { messages: [] };
       state.chat.messages.push(msg);
       saveState();
       broadcast('chat', { message: msg });
     }
+  },
+  onLifecycleEvent: (evt) => {
+    // Forward lifecycle events to any listening terminal SSE clients
+    const sessionKey = evt.payload?.sessionKey || evt.payload?.key;
+    if (sessionKey) {
+      // Find which agent has this session
+      for (const [agentId, agentState] of Object.entries(state.agents)) {
+        if (agentState.sessionKey === sessionKey) {
+          broadcastToTerminal(agentId, evt);
+          break;
+        }
+      }
+    }
   }
 });
 
 // Try to connect to Clawdbot (non-blocking, works without it too)
-try { bridge.connect(); } catch(e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
+try { bridge.connect(); } catch (e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
 
-// Bridge status
+// Bridge status (legacy endpoint kept for compatibility)
 app.get('/api/bridge/status', (req, res) => {
-  res.json({ connected: bridge.connected, gatewayUrl: bridge.gatewayUrl });
+  res.json(bridge.getStatus());
 });
 
 // Send message through Clawdbot (real AI processing)
@@ -415,17 +838,19 @@ app.post('/api/bridge/send', async (req, res) => {
       ? await bridge.sendToSession(sessionKey, message)
       : await bridge.sendMessage(message);
     res.json(result);
-  } catch(e) {
+  } catch (e) {
     res.json({ error: e.message });
   }
 });
 
 // ═══════════════════════════════════════
-// EXEC — Run commands (for agent operations)
+// EXEC — Protected with auth (already applied via middleware)
 // ═══════════════════════════════════════
 app.post('/api/exec', (req, res) => {
   const { command, cwd } = req.body;
   if (!command) return res.status(400).json({ error: 'No command' });
+
+  // Only allow from authenticated requests (middleware already checks)
   try {
     const result = execSync(command, {
       cwd: cwd || PROJECT_ROOT,
@@ -434,8 +859,165 @@ app.post('/api/exec', (req, res) => {
       maxBuffer: 1024 * 1024
     });
     res.json({ success: true, output: result });
-  } catch(e) {
+  } catch (e) {
     res.json({ success: false, output: e.stdout || '', error: e.stderr || e.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// STRATEGY API
+// ═══════════════════════════════════════
+const STRATEGY_FILE = path.join(__dirname, 'strategy.json');
+let strategy = { vision: '', guardrails: '', directives: {} };
+try {
+  if (fs.existsSync(STRATEGY_FILE)) strategy = JSON.parse(fs.readFileSync(STRATEGY_FILE, 'utf8'));
+} catch {}
+
+app.get('/api/strategy', (req, res) => {
+  res.json(strategy);
+});
+
+app.post('/api/strategy', (req, res) => {
+  strategy = { ...strategy, ...req.body };
+  try { fs.writeFileSync(STRATEGY_FILE, JSON.stringify(strategy, null, 2)); } catch {}
+  res.json({ ok: true });
+});
+
+app.post('/api/agents/:id/directive', (req, res) => {
+  const { id } = req.params;
+  const { directive } = req.body;
+  if (!strategy.directives) strategy.directives = {};
+  const prev = strategy.directives[id] || { agentId: id, text: '', history: [] };
+  strategy.directives[id] = {
+    agentId: id,
+    text: directive,
+    history: [...(prev.history || []), { text: prev.text, timestamp: Date.now() }].slice(-10),
+  };
+  try { fs.writeFileSync(STRATEGY_FILE, JSON.stringify(strategy, null, 2)); } catch {}
+  res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════
+// AGENT STREAM (Terminal View) + INJECT
+// ═══════════════════════════════════════
+
+// Terminal client tracking (not persisted to state.json)
+const terminalClients = {};
+
+function broadcastToTerminal(agentId, eventData) {
+  if (!terminalClients[agentId]) return;
+  const data = JSON.stringify(eventData);
+  terminalClients[agentId].forEach(client => {
+    try { client.write(`data: ${data}\n\n`); } catch {}
+  });
+}
+
+app.get('/api/agents/:id/stream', (req, res) => {
+  const { id } = req.params;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  // Send initial state
+  const agentState = state.agents[id];
+  if (agentState) {
+    res.write(`data: ${JSON.stringify({ type: 'system', content: `Agent ${id}: ${agentState.status}. Task: ${agentState.currentTask || 'none'}` })}\n\n`);
+  }
+
+  // Keep alive
+  const keepAlive = setInterval(() => {
+    try { res.write(': keepalive\n\n'); } catch { clearInterval(keepAlive); }
+  }, 15000);
+
+  // Register for terminal broadcasts
+  if (!terminalClients[id]) terminalClients[id] = [];
+  terminalClients[id].push(res);
+
+  // Subscribe to bridge lifecycle events for this agent's session
+  let unsubscribe = null;
+  const sessionKey = state.agents[id]?.sessionKey;
+  if (sessionKey && bridge.connected) {
+    unsubscribe = bridge.subscribeToSession(sessionKey, (evt) => {
+      try {
+        res.write(`data: ${JSON.stringify(evt)}\n\n`);
+      } catch {}
+    });
+  }
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    if (terminalClients[id]) {
+      terminalClients[id] = terminalClients[id].filter(c => c !== res);
+    }
+    if (unsubscribe) unsubscribe();
+  });
+});
+
+app.post('/api/agents/:id/inject', async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  if (!message) return res.status(400).json({ error: 'No message' });
+
+  // Broadcast to terminal UI
+  broadcastToTerminal(id, { type: 'inject', content: `[INJECTED] ${message}` });
+
+  // Send to real session via bridge if available
+  const sessionKey = state.agents[id]?.sessionKey;
+  if (sessionKey && bridge.connected) {
+    try {
+      const result = await bridge.sendToSession(sessionKey, message);
+      return res.json({ ok: true, bridged: true, result });
+    } catch (e) {
+      return res.json({ ok: true, bridged: false, error: e.message, message: `Command injected locally to ${id}` });
+    }
+  }
+
+  res.json({ ok: true, bridged: false, message: `Command injected locally to ${id} (no active session)` });
+});
+
+// ═══════════════════════════════════════
+// STATE API (for UI)
+// ═══════════════════════════════════════
+app.get('/api/state', (req, res) => {
+  const agentStates = {};
+  try {
+    const agentFiles = fs.readdirSync(AGENTS_DIR).filter(f => f.endsWith('.md'));
+    agentFiles.forEach(f => {
+      const id = f.replace('.md', '');
+      agentStates[id] = state.agents[id] || { status: 'idle', currentTask: null, progress: 0, checklist: [] };
+    });
+  } catch {}
+
+  const totalTasks = Object.values(agentStates).reduce((sum, a) => sum + (a.checklist?.length || 0), 0);
+  const completedTasks = Object.values(agentStates).reduce((sum, a) => sum + (a.checklist?.filter(c => c.done)?.length || 0), 0);
+
+  res.json({
+    agents: agentStates,
+    project: {
+      name: config.name || 'AG Dev',
+      totalTasks,
+      completedTasks,
+    },
+    bridge: {
+      connected: bridge.connected,
+      url: bridge.gatewayUrl
+    }
+  });
+});
+
+// ═══════════════════════════════════════
+// SPA CATCH-ALL
+// ═══════════════════════════════════════
+app.get('/{*splat}', (req, res) => {
+  const indexPath = path.join(staticDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Not found');
   }
 });
 
@@ -443,12 +1025,17 @@ app.post('/api/exec', (req, res) => {
 // START
 // ═══════════════════════════════════════
 app.listen(PORT, '0.0.0.0', () => {
+  let agentCount = 0;
+  try { agentCount = fs.readdirSync(AGENTS_DIR).filter(f => f.endsWith('.md')).length; } catch {}
+
   console.log(`\n  ╔═══════════════════════════════════════════╗`);
   console.log(`  ║      AG DEV — Command Center Online       ║`);
   console.log(`  ╠═══════════════════════════════════════════╣`);
   console.log(`  ║  URL:     http://0.0.0.0:${PORT}`);
   console.log(`  ║  Project: ${config.name}`);
   console.log(`  ║  Root:    ${PROJECT_ROOT}`);
-  console.log(`  ║  Agents:  ${fs.readdirSync(path.join(CORE_DIR, 'agents')).filter(f => f.endsWith('.md')).length}`);
+  console.log(`  ║  Agents:  ${agentCount}`);
+  console.log(`  ║  Gateway: ${config.gateway.url}`);
+  console.log(`  ║  Auth:    ${config.auth.token ? config.auth.token.slice(0, 8) + '...' : 'none'}`);
   console.log(`  ╚═══════════════════════════════════════════╝\n`);
 });
