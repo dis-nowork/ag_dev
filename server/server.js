@@ -24,6 +24,15 @@ const { ClawdbotBridge } = require('./ws-bridge');
 const { createRuntime } = require('./runtimes/runtime-factory');
 const { WorkflowEngine } = require('./workflow-engine');
 
+// ─── Global crash protection ───
+// Never let an unhandled error kill the server
+process.on('uncaughtException', (err) => {
+  console.error('  ⚠ Uncaught exception (server stays alive):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('  ⚠ Unhandled rejection (server stays alive):', reason?.message || reason);
+});
+
 const app = express();
 
 // ─── Config ───
