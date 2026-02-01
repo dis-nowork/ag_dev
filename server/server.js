@@ -923,6 +923,71 @@ app.post('/api/project/config', (req, res) => {
   res.json({ ok: true, config: { name: config.name, projectRoot: config.projectRoot, agents: config.agents } });
 });
 
+// ═══════════════════════════════════════
+// PROJECT CLONE — Clone from GitHub URL
+// ═══════════════════════════════════════
+app.post('/api/project/clone', async (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // Validate it looks like a git URL
+  const gitUrlMatch = url.match(/github\.com\/[\w.-]+\/([\w.-]+?)(?:\.git)?$/i);
+  if (!gitUrlMatch) {
+    return res.status(400).json({ error: 'Invalid GitHub URL. Expected: https://github.com/user/repo' });
+  }
+
+  const repoName = gitUrlMatch[1].replace(/\.git$/, '');
+  const clonePath = path.join('/root', repoName);
+
+  // Check if already cloned
+  if (fs.existsSync(clonePath) && fs.existsSync(path.join(clonePath, '.git'))) {
+    // Already exists — just use it
+    return res.json({
+      ok: true,
+      path: clonePath,
+      name: repoName,
+      alreadyExists: true,
+      message: `Repository already exists at ${clonePath}`,
+    });
+  }
+
+  // Clone the repo
+  try {
+    // Try with gh CLI first (handles auth), fallback to git
+    let cloneCmd;
+    try {
+      execFileSync('gh', ['auth', 'status'], { timeout: 5000, stdio: 'pipe' });
+      cloneCmd = ['gh', ['repo', 'clone', url.replace(/^https?:\/\/github\.com\//, ''), clonePath]];
+    } catch {
+      cloneCmd = ['git', ['clone', url, clonePath]];
+    }
+
+    execFileSync(cloneCmd[0], cloneCmd[1], {
+      timeout: 120000,
+      stdio: 'pipe',
+      env: { ...process.env },
+    });
+
+    if (!fs.existsSync(clonePath)) {
+      return res.status(500).json({ error: 'Clone completed but directory not found' });
+    }
+
+    logEvent('project_clone', { url, path: clonePath, name: repoName });
+
+    res.json({
+      ok: true,
+      path: clonePath,
+      name: repoName,
+      message: `Cloned to ${clonePath}`,
+    });
+  } catch (e) {
+    const errMsg = e.stderr ? e.stderr.toString().trim() : e.message;
+    res.status(500).json({ error: `Clone failed: ${errMsg}` });
+  }
+});
+
 app.post('/api/project/init', (req, res) => {
   const { name, projectRoot, templateId, agents: customAgents, squads: customSquads } = req.body;
 

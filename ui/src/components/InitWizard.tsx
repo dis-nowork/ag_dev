@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Rocket, FolderOpen, Layout, Server, Palette, ChevronRight, ChevronLeft, Check, Loader2, Users } from 'lucide-react'
+import { Rocket, FolderOpen, Layout, Server, Palette, ChevronRight, ChevronLeft, Check, Loader2, Users, Github, Link } from 'lucide-react'
 import { colors } from '../lib/theme'
 
 interface Template {
@@ -68,6 +68,59 @@ export function InitWizard({ onComplete }: InitWizardProps) {
       }
     }
   }, [selectedTemplate, templates])
+
+  // Git URL state
+  const [gitUrl, setGitUrl] = useState('')
+  const [cloning, setCloning] = useState(false)
+  const [cloneStatus, setCloneStatus] = useState<'idle' | 'cloning' | 'done' | 'error'>('idle')
+  const [cloneError, setCloneError] = useState('')
+
+  // Parse GitHub URL to extract repo name and derive defaults
+  const parseGitUrl = (url: string) => {
+    const match = url.match(/github\.com\/[\w.-]+\/([\w.-]+?)(?:\.git)?$/i)
+    return match ? match[1] : ''
+  }
+
+  // When git URL changes, auto-fill project name
+  useEffect(() => {
+    if (gitUrl.trim()) {
+      const repoName = parseGitUrl(gitUrl)
+      if (repoName && !projectName) {
+        setProjectName(repoName.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+      }
+    }
+  }, [gitUrl])
+
+  const handleCloneRepo = async () => {
+    if (!gitUrl.trim()) return
+    setCloning(true)
+    setCloneStatus('cloning')
+    setCloneError('')
+
+    try {
+      const res = await fetch('/api/project/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: gitUrl }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setProjectPath(data.path)
+        if (data.name && !projectName) {
+          setProjectName(data.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))
+        }
+        setCloneStatus('done')
+      } else {
+        setCloneError(data.error || 'Clone failed')
+        setCloneStatus('error')
+      }
+    } catch (e: any) {
+      setCloneError(e.message || 'Network error')
+      setCloneStatus('error')
+    } finally {
+      setCloning(false)
+    }
+  }
 
   const canNext = () => {
     if (step === 0) return projectName.trim().length > 0 && projectPath.trim().length > 0
@@ -167,6 +220,51 @@ export function InitWizard({ onComplete }: InitWizardProps) {
               {/* Step 0: Project Info */}
               {step === 0 && (
                 <div className="space-y-4">
+                  {/* GitHub URL */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: colors.text.secondary }}>
+                      <Github size={12} className="inline mr-1" /> GitHub Repository URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={gitUrl}
+                        onChange={e => { setGitUrl(e.target.value); setCloneStatus('idle') }}
+                        placeholder="https://github.com/user/repo"
+                        className="flex-1 px-3 py-2 rounded-lg border text-sm outline-none transition-colors focus:border-blue-500"
+                        style={{
+                          backgroundColor: colors.bg.primary,
+                          borderColor: cloneStatus === 'done' ? colors.status.complete + '60' : cloneStatus === 'error' ? colors.status.error + '60' : colors.bg.border,
+                          color: colors.text.primary,
+                        }}
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleCloneRepo}
+                        disabled={cloning || !gitUrl.trim()}
+                        className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                        style={{
+                          backgroundColor: cloneStatus === 'done' ? colors.status.complete + '20' : colors.squads.builders.main,
+                          color: cloneStatus === 'done' ? colors.status.complete : '#fff',
+                          opacity: cloning || !gitUrl.trim() ? 0.5 : 1,
+                        }}
+                      >
+                        {cloning ? <Loader2 size={14} className="animate-spin" /> : cloneStatus === 'done' ? <Check size={14} /> : <Link size={14} />}
+                        {cloning ? 'Cloning...' : cloneStatus === 'done' ? 'Cloned' : 'Clone'}
+                      </button>
+                    </div>
+                    {cloneError && (
+                      <p className="text-[10px] mt-1" style={{ color: colors.status.error }}>⚠ {cloneError}</p>
+                    )}
+                    {cloneStatus === 'done' && (
+                      <p className="text-[10px] mt-1" style={{ color: colors.status.complete }}>✅ Repository cloned to {projectPath}</p>
+                    )}
+                    <p className="text-[10px] mt-1" style={{ color: colors.text.muted }}>
+                      Paste a GitHub URL and click Clone — or enter a local path below.
+                    </p>
+                  </div>
+
+                  {/* Project Name (auto-filled from repo) */}
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: colors.text.secondary }}>
                       <Layout size={12} className="inline mr-1" /> Project Name
@@ -175,17 +273,17 @@ export function InitWizard({ onComplete }: InitWizardProps) {
                       type="text"
                       value={projectName}
                       onChange={e => setProjectName(e.target.value)}
-                      placeholder="My Awesome Project"
+                      placeholder="Auto-filled from repo name"
                       className="w-full px-3 py-2 rounded-lg border text-sm outline-none transition-colors focus:border-blue-500"
                       style={{
                         backgroundColor: colors.bg.primary,
                         borderColor: colors.bg.border,
                         color: colors.text.primary,
                       }}
-                      autoFocus
                     />
                   </div>
 
+                  {/* Project Path (auto-filled after clone, or manual) */}
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: colors.text.secondary }}>
                       <FolderOpen size={12} className="inline mr-1" /> Project Root Path
@@ -194,16 +292,16 @@ export function InitWizard({ onComplete }: InitWizardProps) {
                       type="text"
                       value={projectPath}
                       onChange={e => setProjectPath(e.target.value)}
-                      placeholder="/home/user/my-project"
+                      placeholder={cloneStatus === 'done' ? 'Auto-filled from clone' : '/home/user/my-project'}
                       className="w-full px-3 py-2 rounded-lg border text-sm outline-none transition-colors focus:border-blue-500"
                       style={{
                         backgroundColor: colors.bg.primary,
-                        borderColor: colors.bg.border,
+                        borderColor: projectPath ? colors.status.complete + '30' : colors.bg.border,
                         color: colors.text.primary,
                       }}
                     />
                     <p className="text-[10px] mt-1" style={{ color: colors.text.muted }}>
-                      Absolute path to your project directory. Must already exist.
+                      {cloneStatus === 'done' ? 'Set automatically from clone.' : 'Or enter path to an existing local project.'}
                     </p>
                   </div>
                 </div>
