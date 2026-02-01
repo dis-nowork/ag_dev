@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useDroppable } from '@dnd-kit/core'
 import { GripVertical } from 'lucide-react'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
-import { AGENTS, getAgentMeta, getSquadColor, colors } from '../lib/theme'
+import { getAgentMetaDynamic, getSquadColorDynamic, colors } from '../lib/theme'
 
 interface TaskCard {
   id: string
@@ -39,7 +39,7 @@ const COLUMNS = [
 type ColumnId = typeof COLUMNS[number]['id']
 
 export const PipelineView = memo(function PipelineView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overrides, setOverrides] = useState<Record<string, ColumnId>>({})
 
@@ -48,7 +48,7 @@ export const PipelineView = memo(function PipelineView() {
   )
 
   // Derive tasks from agent states
-  const tasks: TaskCard[] = AGENTS.map(a => {
+  const tasks: TaskCard[] = agentMetas.map(a => {
     const state = agents[a.id] as AgentState | undefined
     if (!state) return null
 
@@ -69,7 +69,7 @@ export const PipelineView = memo(function PipelineView() {
 
   // Also extract checklist items as subtasks
   const checklistTasks: TaskCard[] = []
-  AGENTS.forEach(a => {
+  agentMetas.forEach(a => {
     const state = agents[a.id]
     if (!state?.checklist?.length) return
     state.checklist.forEach((item, i) => {
@@ -107,15 +107,12 @@ export const PipelineView = memo(function PipelineView() {
     if (!over) return
 
     const taskId = String(active.id)
-    // Determine target column: could be a column droppable or another card in a column
     let targetCol: ColumnId | null = null
 
-    // Check if dropped on a column
     const colIds: string[] = COLUMNS.map(c => c.id)
     if (colIds.includes(String(over.id))) {
       targetCol = String(over.id) as ColumnId
     } else {
-      // Dropped on a card — find which column that card is in
       const overTask = allTasks.find(t => t.id === String(over.id))
       if (overTask) {
         targetCol = getTaskStatus(overTask)
@@ -128,10 +125,8 @@ export const PipelineView = memo(function PipelineView() {
     const currentStatus = getTaskStatus(task)
     if (currentStatus === targetCol) return
 
-    // Update local override
     setOverrides(prev => ({ ...prev, [taskId]: targetCol }))
 
-    // If task has an agentId, call API to update state
     if (task.agentId) {
       const stateMap: Record<ColumnId, string> = {
         backlog: 'idle',
@@ -144,7 +139,6 @@ export const PipelineView = memo(function PipelineView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: stateMap[targetCol] }),
       }).catch(() => {
-        // Revert on failure
         setOverrides(prev => {
           const next = { ...prev }
           delete next[taskId]
@@ -284,8 +278,9 @@ function TaskCardEl({
   isDragging?: boolean
   dragHandleProps?: Record<string, unknown>
 }) {
-  const meta = task.agentId ? getAgentMeta(task.agentId) : null
-  const squadColor = meta ? getSquadColor(meta.squad) : null
+  const { agentMetas } = useAgentStore()
+  const meta = task.agentId ? getAgentMetaDynamic(task.agentId, agentMetas) : null
+  const squadColor = meta ? getSquadColorDynamic(meta.squad) : null
 
   return (
     <motion.div

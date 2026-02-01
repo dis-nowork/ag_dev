@@ -13,7 +13,7 @@ import '@xyflow/react/dist/style.css'
 import dagre from '@dagrejs/dagre'
 import { useAgentStore } from '../stores/agentStore'
 import { useUIStore } from '../stores/uiStore'
-import { AGENTS, SQUADS, getSquadColor, colors } from '../lib/theme'
+import { getSquadColorDynamic, colors, type AgentMeta, type SquadDef } from '../lib/theme'
 
 const NODE_WIDTH = 140
 const NODE_HEIGHT = 50
@@ -41,7 +41,11 @@ function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
   })
 }
 
-function buildGraph(agents: Record<string, any>) {
+function buildGraph(
+  agents: Record<string, any>,
+  agentMetas: AgentMeta[],
+  squads: Record<string, SquadDef>,
+) {
   const nodes: Node[] = []
   const edges: Edge[] = []
 
@@ -63,8 +67,8 @@ function buildGraph(agents: Record<string, any>) {
   })
 
   // Squad nodes
-  Object.entries(SQUADS).forEach(([squadId, squad]) => {
-    const sc = getSquadColor(squadId as any)
+  Object.entries(squads).forEach(([squadId, squad]) => {
+    const sc = getSquadColorDynamic(squadId)
     nodes.push({
       id: `squad-${squadId}`,
       position: { x: 0, y: 0 },
@@ -92,8 +96,8 @@ function buildGraph(agents: Record<string, any>) {
   })
 
   // Agent nodes
-  AGENTS.forEach((agent) => {
-    const sc = getSquadColor(agent.squad)
+  agentMetas.forEach((agent) => {
+    const sc = getSquadColorDynamic(agent.squad)
     const state = agents[agent.id]
     const isActive = state?.status === 'working'
     const isDone = state?.status === 'done'
@@ -131,7 +135,7 @@ function buildGraph(agents: Record<string, any>) {
   })
 
   // Detect collaboration patterns (cross-squad active agents)
-  const activeAgents = AGENTS.filter(a => agents[a.id]?.status === 'working')
+  const activeAgents = agentMetas.filter(a => agents[a.id]?.status === 'working')
   for (let i = 0; i < activeAgents.length; i++) {
     for (let j = i + 1; j < activeAgents.length; j++) {
       if (activeAgents[i].squad !== activeAgents[j].squad) {
@@ -153,18 +157,19 @@ function buildGraph(agents: Record<string, any>) {
 }
 
 export const EmergenceView = memo(function EmergenceView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas, squads } = useAgentStore()
   const { selectAgent } = useUIStore()
 
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(agents), [agents])
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(
+    () => buildGraph(agents, agentMetas, squads),
+    [agents, agentMetas, squads],
+  )
   const [nodes, , onNodesChange] = useNodesState(initialNodes)
   const [edges, , onEdgesChange] = useEdgesState(initialEdges)
 
   const activeCount = Object.values(agents).filter(a => a.status === 'working').length
   const doneCount = Object.values(agents).filter(a => a.status === 'done').length
   const errorCount = Object.values(agents).filter(a => a.status === 'error').length
-
-  // Identify bottlenecks: agents that are blocking others (done agents whose dependents are waiting)
   const blockedCount = Object.values(agents).filter(a => a.status === 'error' || a.status === 'paused').length
 
   const onNodeClick = (_: any, node: Node) => {
@@ -209,7 +214,7 @@ export const EmergenceView = memo(function EmergenceView() {
         </h4>
         <div className="flex gap-4 text-xs" style={{ color: colors.text.secondary }}>
           {activeCount > 2 && <span>⚡ High activity: {activeCount} agents working simultaneously</span>}
-          {doneCount > 6 && <span>📈 Good progress: {doneCount}/12 agents completed</span>}
+          {doneCount > 6 && <span>📈 Good progress: {doneCount}/{agentMetas.length} agents completed</span>}
           {errorCount > 0 && <span>🔴 Attention: {errorCount} agent(s) with errors</span>}
           {blockedCount > 0 && <span>🚧 Bottleneck: {blockedCount} agent(s) blocked — may be holding up dependencies</span>}
           {activeCount === 0 && doneCount === 0 && <span>💤 All agents idle — click an agent node to inspect, or start a task</span>}

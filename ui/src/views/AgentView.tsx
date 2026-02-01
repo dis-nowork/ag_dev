@@ -4,7 +4,7 @@ import { ArrowLeft, Pause, Play, RotateCcw, Skull, MessageSquare, FileText, Chec
 import { Sparkline } from '../components/Sparkline'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
 import { useUIStore } from '../stores/uiStore'
-import { getAgentMeta, getSquadColor, colors } from '../lib/theme'
+import { getAgentMetaDynamic, getSquadColorDynamic, colors } from '../lib/theme'
 
 const defaultState: AgentState = {
   status: 'idle', currentTask: null, checklist: [], progress: 0,
@@ -13,13 +13,13 @@ const defaultState: AgentState = {
 
 export const AgentView = memo(function AgentView() {
   const { selectedAgentId, selectAgent, openChat } = useUIStore()
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [thinking, setThinking] = useState<string[]>([])
   const thinkingRef = useRef<HTMLDivElement>(null)
 
-  const meta = selectedAgentId ? getAgentMeta(selectedAgentId) : null
+  const meta = selectedAgentId ? getAgentMetaDynamic(selectedAgentId, agentMetas) : null
   const state = selectedAgentId ? (agents[selectedAgentId] || defaultState) : defaultState
-  const squadColor = meta ? getSquadColor(meta.squad) : { main: '#666', light: '#888', bg: 'transparent', glow: 'transparent' }
+  const squadColor = meta ? getSquadColorDynamic(meta.squad) : { main: '#666', light: '#888', bg: 'transparent', glow: 'transparent' }
 
   // Simulated thinking stream (will be connected to SSE)
   useEffect(() => {

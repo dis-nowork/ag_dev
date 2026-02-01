@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Rocket } from 'lucide-react'
-import { AGENTS, colors } from '../lib/theme'
+import { colors } from '../lib/theme'
+import { useAgentStore } from '../stores/agentStore'
 import { useToastStore } from '../stores/toastStore'
 
 interface AgentSpawnDialogProps {
@@ -20,6 +21,7 @@ const MODELS = [
 
 export function AgentSpawnDialog({ open, onClose, preselectedAgentId }: AgentSpawnDialogProps) {
   const { addToast } = useToastStore()
+  const { agentMetas } = useAgentStore()
   const [agentId, setAgentId] = useState(preselectedAgentId || '')
   const [task, setTask] = useState('')
   const [model, setModel] = useState('')
@@ -112,7 +114,7 @@ export function AgentSpawnDialog({ open, onClose, preselectedAgentId }: AgentSpa
                     }}
                   >
                     <option value="">Select an agent...</option>
-                    {AGENTS.map((a) => (
+                    {agentMetas.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.icon} {a.name} — {a.role}
                       </option>

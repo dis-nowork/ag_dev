@@ -7,7 +7,7 @@ import { useUIStore, type ViewId } from './stores/uiStore'
 import { useAgentStore } from './stores/agentStore'
 
 // Hooks
-import { useSSE, usePolling } from './hooks/useSSE'
+import { useSSE, usePolling, useBootstrap } from './hooks/useSSE'
 import { useKeyboard } from './hooks/useKeyboard'
 
 // Components
@@ -86,6 +86,7 @@ export default function App() {
   }, [])
 
   // Connect to server
+  useBootstrap()
   useSSE()
   usePolling('/api/state', 15000)
   useKeyboard()

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { GitBranch, Download, Edit3, Eye, RefreshCw } from 'lucide-react'
 import mermaid from 'mermaid'
 import { useAgentStore } from '../stores/agentStore'
-import { AGENTS, SQUADS, colors } from '../lib/theme'
+import { colors, type AgentMeta } from '../lib/theme'
 
 type DiagramTab = 'flow' | 'architecture' | 'agent-flow' | 'custom'
 
@@ -99,11 +99,11 @@ function generateArchitectureDiagram(): string {
     style Gateway fill:#EF444410,stroke:#EF4444`
 }
 
-function generateAgentFlowDiagram(agents: Record<string, any>): string {
+function generateAgentFlowDiagram(agents: Record<string, any>, agentMetas: AgentMeta[]): string {
   const lines = ['flowchart LR']
-  const activeAgents = AGENTS.filter(a => agents[a.id]?.status === 'working')
-  const doneAgents = AGENTS.filter(a => agents[a.id]?.status === 'done')
-  const idleAgents = AGENTS.filter(a => !agents[a.id] || agents[a.id]?.status === 'idle')
+  const activeAgents = agentMetas.filter(a => agents[a.id]?.status === 'working')
+  const doneAgents = agentMetas.filter(a => agents[a.id]?.status === 'done')
+  const idleAgents = agentMetas.filter(a => !agents[a.id] || agents[a.id]?.status === 'idle')
 
   lines.push('  subgraph Active["⚡ Active"]')
   activeAgents.forEach(a => lines.push(`    ${a.id}["${a.icon} ${a.shortName}"]`))
@@ -127,7 +127,7 @@ function generateAgentFlowDiagram(agents: Record<string, any>): string {
 }
 
 export const DiagramsView = memo(function DiagramsView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [activeTab, setActiveTab] = useState<DiagramTab>('flow')
   const [customCode, setCustomCode] = useState('flowchart TD\n  A[Start] --> B[End]')
   const [editing, setEditing] = useState(false)
@@ -139,10 +139,10 @@ export const DiagramsView = memo(function DiagramsView() {
     switch (activeTab) {
       case 'flow': return generateWorkflowDiagram()
       case 'architecture': return generateArchitectureDiagram()
-      case 'agent-flow': return generateAgentFlowDiagram(agents)
+      case 'agent-flow': return generateAgentFlowDiagram(agents, agentMetas)
       case 'custom': return customCode
     }
-  }, [activeTab, agents, customCode])
+  }, [activeTab, agents, agentMetas, customCode])
 
   const renderDiagram = useCallback(async () => {
     const code = getDiagramCode()

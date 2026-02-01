@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Send, ChevronDown } from 'lucide-react'
 import { useUIStore } from '../stores/uiStore'
 import { useChatStore } from '../stores/chatStore'
-import { AGENTS, colors } from '../lib/theme'
+import { colors } from '../lib/theme'
+import { useAgentStore } from '../stores/agentStore'
 
 export function ChatFloat() {
   const { chatOpen, closeChat, chatAgentId, setChatAgent } = useUIStore()
+  const { agentMetas } = useAgentStore()
   const { messages, addMessage, isLoading, setLoading } = useChatStore()
   const [input, setInput] = useState('')
   const [showAgentPicker, setShowAgentPicker] = useState(false)
@@ -51,7 +53,7 @@ export function ChatFloat() {
     }
   }
 
-  const currentAgent = AGENTS.find(a => a.id === chatAgentId)
+  const currentAgent = agentMetas.find(a => a.id === chatAgentId)
 
   return (
     <AnimatePresence>
@@ -105,7 +107,7 @@ export function ChatFloat() {
                 >
                   💬 Main Chat
                 </button>
-                {AGENTS.map(a => (
+                {agentMetas.map(a => (
                   <button
                     key={a.id}
                     onClick={() => { setChatAgent(a.id); setShowAgentPicker(false) }}

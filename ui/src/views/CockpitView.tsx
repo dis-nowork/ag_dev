@@ -1,11 +1,11 @@
-import { memo, useState } from 'react'
+import { memo, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Rocket } from 'lucide-react'
 import { AgentCard } from '../components/AgentCard'
 import { AgentSpawnDialog } from '../components/AgentSpawnDialog'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
 import { useUIStore } from '../stores/uiStore'
-import { SQUADS, AGENTS, getSquadColor, type SquadId, colors } from '../lib/theme'
+import { getSquadColorDynamic, colors } from '../lib/theme'
 
 const defaultState: AgentState = {
   status: 'idle',
@@ -18,12 +18,28 @@ const defaultState: AgentState = {
   tokens: null,
 }
 
-const SQUAD_ORDER: SquadId[] = ['builders', 'thinkers', 'guardians', 'creators']
-
 export const CockpitView = memo(function CockpitView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas, squads, loaded } = useAgentStore()
   const { selectAgent } = useUIStore()
   const [spawnOpen, setSpawnOpen] = useState(false)
+
+  // Derive squad order from store squads
+  const squadOrder = useMemo(() => Object.keys(squads), [squads])
+
+  if (!loaded) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <motion.div
+          className="text-sm"
+          style={{ color: colors.text.muted }}
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          Loading agents...
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -42,10 +58,12 @@ export const CockpitView = memo(function CockpitView() {
         </div>
 
         {/* Squad groups */}
-        {SQUAD_ORDER.map(squadId => {
-          const squad = SQUADS[squadId]
-          const squadColor = getSquadColor(squadId)
-          const squadAgents = AGENTS.filter(a => a.squad === squadId)
+        {squadOrder.map(squadId => {
+          const squad = squads[squadId]
+          if (!squad) return null
+          const squadColor = getSquadColorDynamic(squadId)
+          const squadAgents = agentMetas.filter(a => a.squad === squadId)
+          if (squadAgents.length === 0) return null
 
           return (
             <motion.div

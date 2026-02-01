@@ -1,6 +1,83 @@
 import { useEffect, useRef } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import { useToastStore } from '../stores/toastStore'
+import { DEFAULT_AGENTS, DEFAULT_SQUADS, type AgentMeta, type SquadDef } from '../lib/theme'
+
+/** Bootstrap: fetch agent metadata from server on mount */
+export function useBootstrap() {
+  const { setAgentMetas, setSquads, loaded } = useAgentStore()
+  const fetched = useRef(false)
+
+  useEffect(() => {
+    if (fetched.current || loaded) return
+    fetched.current = true
+
+    fetch('/api/agents/meta')
+      .then(r => {
+        if (!r.ok) throw new Error('not ok')
+        return r.json()
+      })
+      .then((data: { agents?: any[]; squads?: Record<string, any> | any[] }) => {
+        // Map server agents to AgentMeta[]
+        const metas: AgentMeta[] = (data.agents || []).map((a: any) => ({
+          id: a.id,
+          name: a.name || a.title || a.id,
+          shortName: a.shortName || (a.name || a.id).slice(0, 3).toUpperCase(),
+          icon: a.icon || '🤖',
+          squad: a.squad || 'builders',
+          role: a.role || a.title || '',
+        }))
+
+        // Map server squads
+        let squads: Record<string, SquadDef> = {}
+        if (data.squads) {
+          if (Array.isArray(data.squads)) {
+            // Array format: [{ id, label, icon, agents }]
+            for (const s of data.squads) {
+              squads[s.id] = {
+                label: s.label || s.name || s.id,
+                icon: s.icon || '📦',
+                agents: s.agents || [],
+              }
+            }
+          } else {
+            // Object format: { squadId: { label, icon, agents } }
+            squads = data.squads as Record<string, SquadDef>
+          }
+        }
+
+        // If we got agents but no squads, derive squads from agent data
+        if (metas.length > 0 && Object.keys(squads).length === 0) {
+          const squadMap: Record<string, string[]> = {}
+          for (const m of metas) {
+            if (!squadMap[m.squad]) squadMap[m.squad] = []
+            squadMap[m.squad].push(m.id)
+          }
+          for (const [sid, agents] of Object.entries(squadMap)) {
+            squads[sid] = {
+              label: sid.charAt(0).toUpperCase() + sid.slice(1),
+              icon: DEFAULT_SQUADS[sid]?.icon || '📦',
+              agents,
+            }
+          }
+        }
+
+        if (metas.length > 0) {
+          setAgentMetas(metas)
+          setSquads(Object.keys(squads).length > 0 ? squads : DEFAULT_SQUADS)
+        } else {
+          // No agents from server — use defaults
+          setAgentMetas(DEFAULT_AGENTS)
+          setSquads(DEFAULT_SQUADS)
+        }
+      })
+      .catch(() => {
+        // Fallback to defaults
+        setAgentMetas(DEFAULT_AGENTS)
+        setSquads(DEFAULT_SQUADS)
+      })
+  }, [])
+}
 
 export function useSSE() {
   const { updateAgent, setPendingActions, setProjectInfo, setBridgeStatus, addPendingActionDetail } = useAgentStore()
@@ -32,10 +109,8 @@ export function useSSE() {
             )
           }
         } else if (data.type === 'clawdbot_event') {
-          // Lifecycle events from bridge (session started, stopped, error, etc.)
           handleClawdbotEvent(data)
         } else if (data.type === 'agent_stream') {
-          // Text delta streaming to agent's terminal
           if (data.agentId && data.delta) {
             updateAgent(data.agentId, {
               output: data.delta,
@@ -43,14 +118,12 @@ export function useSSE() {
             })
           }
         } else if (data.type === 'bridge_status') {
-          // Update bridge connection state
           setBridgeStatus({
             connected: data.connected ?? false,
             gatewayUrl: data.gatewayUrl || '',
             latency: data.latency ?? 0,
           })
         } else if (data.type === 'consent_pending') {
-          // Update pending actions
           if (typeof data.count === 'number') {
             setPendingActions(data.count)
           }
@@ -64,14 +137,12 @@ export function useSSE() {
             })
           }
         } else if (data.type === 'toast') {
-          // Trigger toast notification
           addToast(data.level || 'info', data.message || 'Notification')
         }
       } catch {}
     }
 
     es.onerror = () => {
-      // Will auto-reconnect
       setBridgeStatus({ connected: false })
     }
 

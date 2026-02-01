@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AgentMeta, SquadDef } from '../lib/theme'
 
 export interface CheckItem { text: string; done: boolean }
 
@@ -48,6 +49,13 @@ interface AgentStore {
   totalTasks: number
   completedTasks: number
   bridge: BridgeStatus
+
+  /** Dynamic agent metadata loaded from server */
+  agentMetas: AgentMeta[]
+  /** Dynamic squad definitions loaded from server */
+  squads: Record<string, SquadDef>
+  /** Whether initial metadata has been loaded */
+  loaded: boolean
   
   setAgents: (agents: Record<string, AgentState>) => void
   updateAgent: (id: string, state: Partial<AgentState>) => void
@@ -56,6 +64,8 @@ interface AgentStore {
   clearPendingActions: () => void
   setProjectInfo: (name: string, total: number, completed: number) => void
   setBridgeStatus: (status: Partial<BridgeStatus>) => void
+  setAgentMetas: (metas: AgentMeta[]) => void
+  setSquads: (squads: Record<string, SquadDef>) => void
 }
 
 const defaultAgentState: AgentState = {
@@ -81,6 +91,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
     gatewayUrl: '',
     latency: 0,
   },
+
+  agentMetas: [],
+  squads: {},
+  loaded: false,
 
   setAgents: (agents) => set({ agents }),
   
@@ -109,4 +123,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setBridgeStatus: (status) => set((s) => ({
     bridge: { ...s.bridge, ...status },
   })),
+
+  setAgentMetas: (metas) => set({ agentMetas: metas, loaded: true }),
+
+  setSquads: (squads) => set({ squads }),
 }))

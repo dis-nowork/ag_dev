@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { ChevronRight, Edit3, Clock, AlertTriangle } from 'lucide-react'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
 import { useUIStore } from '../stores/uiStore'
-import { AGENTS, getAgentMeta, getSquadColor, colors } from '../lib/theme'
+import { getAgentMetaDynamic, getSquadColorDynamic, colors, type AgentMeta } from '../lib/theme'
 
 interface GanttTask {
   id: string
@@ -106,9 +106,9 @@ function findCriticalPath(tasks: GanttTask[]): string[] {
 }
 
 // SVG dependency arrows component
-function DependencyArrows({ tasks, dayWidth, labelWidth }: { tasks: GanttTask[]; dayWidth: number; labelWidth: number }) {
+function DependencyArrows({ tasks, dayWidth, labelWidth, agentMetas }: { tasks: GanttTask[]; dayWidth: number; labelWidth: number; agentMetas: AgentMeta[] }) {
   const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]))
-  const ROW_HEIGHT = 36 // Match the space-y-1 + h-8 of each row
+  const ROW_HEIGHT = 36
 
   const arrows: { x1: number; y1: number; x2: number; y2: number; color: string }[] = []
 
@@ -117,14 +117,13 @@ function DependencyArrows({ tasks, dayWidth, labelWidth }: { tasks: GanttTask[];
       const dep = taskMap.get(depId)
       if (!dep) return
 
-      // From end of dependency bar to start of current task bar
       const x1 = (dep.task.startDay + dep.task.duration) * dayWidth
       const y1 = dep.index * ROW_HEIGHT + ROW_HEIGHT / 2
       const x2 = task.startDay * dayWidth
       const y2 = idx * ROW_HEIGHT + ROW_HEIGHT / 2
 
-      const meta = getAgentMeta(task.agentId)
-      const sc = meta ? getSquadColor(meta.squad) : { main: '#666' }
+      const meta = getAgentMetaDynamic(task.agentId, agentMetas)
+      const sc = meta ? getSquadColorDynamic(meta.squad) : { main: '#666' }
 
       arrows.push({ x1, y1, x2, y2, color: sc.main + '50' })
     })
@@ -162,7 +161,7 @@ function DependencyArrows({ tasks, dayWidth, labelWidth }: { tasks: GanttTask[];
 }
 
 export const GanttView = memo(function GanttView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const { selectAgent } = useUIStore()
   const [editingTask, setEditingTask] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -242,12 +241,12 @@ export const GanttView = memo(function GanttView() {
 
       {/* Tasks with dependency arrows overlay */}
       <div className="flex-1 overflow-y-auto relative">
-        <DependencyArrows tasks={tasks} dayWidth={dayWidth} labelWidth={LABEL_WIDTH} />
+        <DependencyArrows tasks={tasks} dayWidth={dayWidth} labelWidth={LABEL_WIDTH} agentMetas={agentMetas} />
 
         <div className="space-y-1 relative z-10">
           {tasks.map(task => {
-            const meta = getAgentMeta(task.agentId)
-            const sc = meta ? getSquadColor(meta.squad) : { main: '#666', bg: 'transparent' }
+            const meta = getAgentMetaDynamic(task.agentId, agentMetas)
+            const sc = meta ? getSquadColorDynamic(meta.squad) : { main: '#666', bg: 'transparent' }
             const isOnCriticalPath = criticalPathIds.includes(task.id)
             const barColor = task.status === 'done' ? colors.status.complete
               : task.status === 'active' ? sc.main

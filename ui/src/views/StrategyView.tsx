@@ -2,7 +2,7 @@ import { memo, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Edit3, History, RotateCcw, Save, Eye, Shield } from 'lucide-react'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
-import { AGENTS, getAgentMeta, getSquadColor, colors } from '../lib/theme'
+import { getSquadColorDynamic, colors } from '../lib/theme'
 
 interface Directive {
   agentId: string
@@ -12,10 +12,11 @@ interface Directive {
 
 const defaultState: AgentState = {
   status: 'idle', currentTask: null, checklist: [], progress: 0,
+  sessionKey: null, model: null, tokens: null,
 }
 
 export const StrategyView = memo(function StrategyView() {
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [vision, setVision] = useState('')
   const [guardrails, setGuardrails] = useState('')
   const [directives, setDirectives] = useState<Record<string, Directive>>({})
@@ -34,7 +35,6 @@ export const StrategyView = memo(function StrategyView() {
         if (data.directives) setDirectives(data.directives)
       })
       .catch(() => {
-        // Default values
         setVision('Define your project vision here...')
         setGuardrails('• Stack constraints\n• Quality requirements\n• Security policies')
       })
@@ -121,10 +121,10 @@ export const StrategyView = memo(function StrategyView() {
         {/* Agent Directives */}
         <Section title="📡 Agent Directives" icon={<Edit3 size={14} />}>
           <div className="space-y-3">
-            {AGENTS.map(agentDef => {
+            {agentMetas.map(agentDef => {
               const agentState = agents[agentDef.id] || defaultState
               const directive = directives[agentDef.id]
-              const sc = getSquadColor(agentDef.squad)
+              const sc = getSquadColorDynamic(agentDef.squad)
               const isEditing = editingAgent === agentDef.id
 
               return (

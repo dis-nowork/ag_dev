@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { Sparkline } from './Sparkline'
-import { type AgentMeta, getSquadColor, colors } from '../lib/theme'
+import { type AgentMeta, getSquadColorDynamic, colors } from '../lib/theme'
 import { type AgentState } from '../stores/agentStore'
 
 interface AgentCardProps {
@@ -43,7 +43,7 @@ function StatusDot({ status, color }: { status: AgentState['status']; color: str
 }
 
 export const AgentCard = memo(function AgentCard({ meta, state, onClick }: AgentCardProps) {
-  const squadColor = getSquadColor(meta.squad)
+  const squadColor = getSquadColorDynamic(meta.squad)
   const isActive = state.status === 'working'
   const isDone = state.status === 'done'
   

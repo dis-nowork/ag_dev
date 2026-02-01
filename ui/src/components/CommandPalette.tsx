@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Command } from 'cmdk'
 import { useUIStore } from '../stores/uiStore'
 import { useAgentStore } from '../stores/agentStore'
-import { AGENTS, SQUADS, colors } from '../lib/theme'
+import { colors } from '../lib/theme'
 
 export function CommandPalette() {
   const { commandPaletteOpen, closeCommandPalette, setView, selectAgent, openChat } = useUIStore()
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -81,7 +81,7 @@ export function CommandPalette() {
                 </Command.Group>
 
                 <Command.Group heading="Agents" className="mb-2">
-                  {AGENTS.map(a => {
+                  {agentMetas.map(a => {
                     const st = agents[a.id]
                     return (
                       <PaletteItem

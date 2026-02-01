@@ -21,6 +21,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync, execSync, spawn } = require('child_process');
 const { ClawdbotBridge } = require('./ws-bridge');
+const { createRuntime } = require('./runtimes/runtime-factory');
+const { WorkflowEngine } = require('./workflow-engine');
 
 const app = express();
 
@@ -115,7 +117,20 @@ function loadState() {
     console.error('  ⚠ Failed to load state.json:', e.message);
   }
 }
+let saveTimer = null;
 function saveState() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    } catch (e) {
+      console.error('  ⚠ Failed to save state.json:', e.message);
+    }
+    saveTimer = null;
+  }, 500);
+}
+function saveStateImmediate() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
   } catch (e) {
@@ -170,7 +185,7 @@ app.get('/api/project', (req, res) => {
       commits: gitLog,
       changedFiles,
       projectRoot: PROJECT_ROOT,
-      bridgeConnected: bridge.connected
+      bridgeConnected: runtime.connected
     });
   } catch (e) {
     res.json({
@@ -179,7 +194,7 @@ app.get('/api/project', (req, res) => {
       commits: [],
       changedFiles: 0,
       projectRoot: PROJECT_ROOT,
-      bridgeConnected: bridge.connected
+      bridgeConnected: runtime.connected
     });
   }
 });
@@ -271,8 +286,8 @@ app.post('/api/agents/:id/pause', (req, res) => {
 
   // Also send pause instruction to real session if connected
   const sessionKey = state.agents[id]?.sessionKey;
-  if (sessionKey && bridge.connected) {
-    bridge.sendToSession(sessionKey, '/stop').catch(() => {});
+  if (sessionKey && runtime.connected) {
+    runtime.pauseAgent(sessionKey).catch(() => {});
   }
 
   res.json({ success: true });
@@ -294,6 +309,15 @@ app.get('/api/agents/:id/definition', (req, res) => {
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
   res.json({ content: fs.readFileSync(fp, 'utf8') });
 });
+
+// ═══════════════════════════════════════
+// STRATEGY FILE (needed by spawn)
+// ═══════════════════════════════════════
+const STRATEGY_FILE = path.join(__dirname, 'strategy.json');
+let strategy = { vision: '', guardrails: '', directives: {} };
+try {
+  if (fs.existsSync(STRATEGY_FILE)) strategy = JSON.parse(fs.readFileSync(STRATEGY_FILE, 'utf8'));
+} catch {}
 
 // ═══════════════════════════════════════
 // AGENT SPAWN — Create real Clawdbot session
@@ -327,44 +351,38 @@ app.post('/api/agents/:id/spawn', async (req, res) => {
 
   const fullTask = parts.join('\n\n');
 
-  if (!bridge.connected) {
-    // Standalone mode — just update state locally
-    if (!state.agents[id]) state.agents[id] = {};
-    state.agents[id].status = 'working';
-    state.agents[id].currentTask = task || 'Spawned (standalone mode)';
-    state.agents[id].sessionKey = null;
-    saveState();
-    broadcast('agent_update', { agentId: id, state: state.agents[id] });
-    logEvent('agent_spawn_standalone', { agentId: id, task });
-    return res.json({ success: true, standalone: true, message: 'Agent spawned in standalone mode (gateway not connected)' });
-  }
-
   try {
-    const result = await bridge.spawnSession(fullTask, {
+    const result = await runtime.spawnAgent(id, {
+      task: fullTask,
       label: `ag-dev:${id}`,
       model: model || undefined,
-      systemPrompt: agentDef
+      systemPrompt: agentDef,
     });
 
     if (result.ok) {
-      const sessionKey = result.session?.key || result.session?.sessionKey;
+      const sessionKey = result.sessionKey;
       if (!state.agents[id]) state.agents[id] = {};
       state.agents[id].status = 'working';
       state.agents[id].currentTask = task || 'Spawned';
-      state.agents[id].sessionKey = sessionKey;
+      state.agents[id].sessionKey = sessionKey || null;
       saveState();
       broadcast('agent_update', { agentId: id, state: state.agents[id] });
       logEvent('agent_spawned', { agentId: id, sessionKey, task });
 
       // Subscribe to lifecycle events for this session
       if (sessionKey) {
-        bridge.subscribeToSession(sessionKey, (evt) => {
+        runtime.subscribeToAgent(sessionKey, (evt) => {
           broadcastToTerminal(id, evt);
           broadcast('clawdbot_event', { agentId: id, ...evt });
         });
       }
 
-      res.json({ success: true, sessionKey, session: result.session });
+      res.json({
+        success: true,
+        sessionKey,
+        session: result.session,
+        standalone: runtime.name === 'standalone',
+      });
     } else {
       res.status(500).json({ error: result.error || 'Failed to spawn session' });
     }
@@ -387,12 +405,11 @@ app.post('/api/agents/:id/send', async (req, res) => {
     return res.status(400).json({ error: `Agent ${id} has no active session. Spawn first.` });
   }
 
-  if (!bridge.connected) {
-    return res.status(503).json({ error: 'Gateway not connected' });
-  }
-
   try {
-    const result = await bridge.sendToSession(sessionKey, message);
+    const result = await runtime.sendToAgent(sessionKey, message);
+    if (!result.ok) {
+      return res.status(503).json({ error: result.error || 'Failed to send' });
+    }
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -410,13 +427,9 @@ app.get('/api/agents/:id/history', async (req, res) => {
     return res.json({ history: [], message: 'No active session' });
   }
 
-  if (!bridge.connected) {
-    return res.json({ history: [], message: 'Gateway not connected' });
-  }
-
   try {
-    const result = await bridge.getSessionHistory(sessionKey);
-    res.json(result);
+    const result = await runtime.getAgentHistory(sessionKey);
+    res.json({ ok: result.ok, history: result.messages || [], error: result.error });
   } catch (e) {
     res.status(500).json({ error: e.message, history: [] });
   }
@@ -439,8 +452,8 @@ app.post('/api/agents/batch', async (req, res) => {
         if (!state.agents[id]) state.agents[id] = {};
         state.agents[id].status = 'paused';
         const sessionKey = state.agents[id]?.sessionKey;
-        if (sessionKey && bridge.connected) {
-          try { await bridge.sendToSession(sessionKey, '/stop'); } catch {}
+        if (sessionKey && runtime.connected) {
+          try { await runtime.pauseAgent(sessionKey); } catch {}
         }
         results[id] = { success: true, status: 'paused' };
       }
@@ -473,25 +486,18 @@ app.post('/api/agents/batch', async (req, res) => {
 
       for (const agent of toSpawn) {
         try {
-          if (!bridge.connected) {
-            if (!state.agents[agent.id]) state.agents[agent.id] = {};
-            state.agents[agent.id].status = 'working';
-            state.agents[agent.id].currentTask = task || 'Squad spawn (standalone)';
-            results[agent.id] = { success: true, standalone: true };
-          } else {
-            const defContent = fs.readFileSync(agent.definitionPath, 'utf8');
-            const result = await bridge.spawnSession(task || 'Awaiting instructions.', {
-              label: `ag-dev:${agent.id}`,
-              model: model || undefined,
-              systemPrompt: defContent
-            });
-            const sessionKey = result.session?.key || result.session?.sessionKey;
-            if (!state.agents[agent.id]) state.agents[agent.id] = {};
-            state.agents[agent.id].status = 'working';
-            state.agents[agent.id].currentTask = task || 'Squad spawn';
-            state.agents[agent.id].sessionKey = sessionKey;
-            results[agent.id] = { success: result.ok, sessionKey };
-          }
+          const defContent = fs.readFileSync(agent.definitionPath, 'utf8');
+          const result = await runtime.spawnAgent(agent.id, {
+            task: task || 'Awaiting instructions.',
+            label: `ag-dev:${agent.id}`,
+            model: model || undefined,
+            systemPrompt: defContent,
+          });
+          if (!state.agents[agent.id]) state.agents[agent.id] = {};
+          state.agents[agent.id].status = 'working';
+          state.agents[agent.id].currentTask = task || 'Squad spawn';
+          state.agents[agent.id].sessionKey = result.sessionKey || null;
+          results[agent.id] = { success: result.ok, sessionKey: result.sessionKey };
         } catch (e) {
           results[agent.id] = { success: false, error: e.message };
         }
@@ -523,10 +529,10 @@ app.post('/api/chat', async (req, res) => {
   broadcast('chat', { message: msg });
   logEvent('chat_message', { from: 'human', preview: msg.text.slice(0, 50) });
 
-  // Forward to bridge for real AI processing if connected
-  if (bridge.connected) {
+  // Forward to runtime for real AI processing if connected
+  if (runtime.connected) {
     try {
-      const result = await bridge.sendMessage(req.body.message);
+      const result = await runtime.sendMessage(req.body.message);
       if (result.ok) {
         const botMsg = {
           id: Date.now(),
@@ -617,8 +623,12 @@ app.get('/api/docs', (req, res) => {
 app.get('/api/docs/read', (req, res) => {
   const fp = req.query.path;
   if (!fp) return res.status(400).json({ error: 'No path' });
+  const resolved = path.resolve(fp);
+  if (!resolved.startsWith(PROJECT_ROOT) && !resolved.startsWith(CORE_DIR)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
   try {
-    res.json({ content: fs.readFileSync(fp, 'utf8'), path: fp });
+    res.json({ content: fs.readFileSync(resolved, 'utf8'), path: fp });
   } catch (e) {
     res.status(404).json({ error: 'Not found' });
   }
@@ -627,8 +637,12 @@ app.get('/api/docs/read', (req, res) => {
 app.post('/api/docs/save', (req, res) => {
   const { path: fp, content } = req.body;
   if (!fp) return res.status(400).json({ error: 'No path' });
+  const resolved = path.resolve(fp);
+  if (!resolved.startsWith(PROJECT_ROOT) && !resolved.startsWith(CORE_DIR)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
   try {
-    fs.writeFileSync(fp, content, 'utf8');
+    fs.writeFileSync(resolved, content, 'utf8');
     logEvent('doc_saved', { path: fp });
     res.json({ success: true });
   } catch (e) {
@@ -845,7 +859,7 @@ app.get('/api/project/config', (req, res) => {
     projectRoot: config.projectRoot || '',
     port: config.port,
     agents: config.agents,
-    gateway: { url: config.gateway.url, connected: bridge.connected }
+    gateway: { url: config.gateway.url, connected: runtime.connected, runtime: runtime.name }
   };
 
   // Also check for .ag-dev/config.json in project root
@@ -1006,8 +1020,9 @@ app.get('/api/health', (req, res) => {
     agents: Object.keys(state.agents).length,
     sseClients: clients.size,
     memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
-    bridgeConnected: bridge.connected,
-    bridgeUrl: bridge.gatewayUrl
+    bridgeConnected: runtime.connected,
+    runtimeName: runtime.name,
+    bridgeUrl: runtime.gatewayUrl || runtime.name
   });
 });
 
@@ -1015,13 +1030,13 @@ app.get('/api/health', (req, res) => {
 // GATEWAY STATUS — Detailed bridge info
 // ═══════════════════════════════════════
 app.get('/api/gateway/status', async (req, res) => {
-  const bridgeStatus = bridge.getStatus();
+  const bridgeStatus = runtime.getStatus();
 
   // Try to get live sessions if connected
   let sessions = [];
-  if (bridge.connected) {
+  if (runtime.connected) {
     try {
-      const result = await bridge.listSessions();
+      const result = await runtime.listSessions();
       if (result.ok) sessions = result.sessions;
     } catch {}
   }
@@ -1035,22 +1050,15 @@ app.get('/api/gateway/status', async (req, res) => {
   });
 });
 
-// ═══════════════════════════════════════
-// SPA FALLBACK (first one)
-// ═══════════════════════════════════════
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
-  const indexPath = path.join(staticDir, 'index.html');
-  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
-  next();
-});
+// SPA fallback handled by catch-all route at the bottom
 
 // ═══════════════════════════════════════
 // CLAWDBOT BRIDGE — Connect to the brain
 // ═══════════════════════════════════════
-const bridge = new ClawdbotBridge({
-  gatewayUrl: config.gateway.url,
-  token: config.gateway.token || undefined,
+// ─── Runtime Abstraction Layer ───
+// The runtime wraps the bridge (or standalone) behind a uniform interface.
+// The `bridge` variable is kept for backward-compat with any direct references.
+const runtime = createRuntime(config, {
   onEvent: (event) => {
     broadcast('clawdbot_event', { event });
   },
@@ -1067,10 +1075,8 @@ const bridge = new ClawdbotBridge({
     }
   },
   onLifecycleEvent: (evt) => {
-    // Forward lifecycle events to any listening terminal SSE clients
     const sessionKey = evt.payload?.sessionKey || evt.payload?.key;
     if (sessionKey) {
-      // Find which agent has this session
       for (const [agentId, agentState] of Object.entries(state.agents)) {
         if (agentState.sessionKey === sessionKey) {
           broadcastToTerminal(agentId, evt);
@@ -1081,21 +1087,40 @@ const bridge = new ClawdbotBridge({
   }
 });
 
-// Try to connect to Clawdbot (non-blocking, works without it too)
-try { bridge.connect(); } catch (e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
+// Backward-compat: expose bridge reference for any code that still uses it
+const bridge = runtime.bridge || runtime;
+
+// Try to connect (non-blocking, works without gateway too)
+try { runtime.connect(); } catch (e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
+
+// ─── Workflow Engine ───
+const workflowEngine = new WorkflowEngine({
+  runtime,
+  onEvent: (type, data) => {
+    broadcast('workflow_event', { eventType: type, ...data });
+    logEvent(`workflow_${type}`, data);
+  },
+  agentLoader: {
+    getDefinition(agentId) {
+      const fp = path.join(AGENTS_DIR, `${agentId}.md`);
+      if (fs.existsSync(fp)) return fs.readFileSync(fp, 'utf8');
+      return null;
+    }
+  },
+});
 
 // Bridge status (legacy endpoint kept for compatibility)
 app.get('/api/bridge/status', (req, res) => {
-  res.json(bridge.getStatus());
+  res.json(runtime.getStatus());
 });
 
-// Send message through Clawdbot (real AI processing)
+// Send message through runtime (real AI processing)
 app.post('/api/bridge/send', async (req, res) => {
   const { message, sessionKey } = req.body;
   try {
     const result = sessionKey
-      ? await bridge.sendToSession(sessionKey, message)
-      : await bridge.sendMessage(message);
+      ? await runtime.sendToAgent(sessionKey, message)
+      : await runtime.sendMessage(message);
     res.json(result);
   } catch (e) {
     res.json({ error: e.message });
@@ -1108,6 +1133,20 @@ app.post('/api/bridge/send', async (req, res) => {
 app.post('/api/exec', (req, res) => {
   const { command, cwd } = req.body;
   if (!command) return res.status(400).json({ error: 'No command' });
+
+  // Command length limit
+  if (command.length > 1000) return res.status(400).json({ error: 'Command too long (max 1000 chars)' });
+
+  // Blocklist dangerous commands
+  const blocklist = ['rm -rf /', 'mkfs', 'dd if=', ':(){ :|:& };:'];
+  const lowerCmd = command.toLowerCase();
+  for (const blocked of blocklist) {
+    if (lowerCmd.includes(blocked)) {
+      return res.status(403).json({ error: `Blocked dangerous command pattern: ${blocked}` });
+    }
+  }
+
+  logEvent('exec', { command: command.slice(0, 100), cwd: cwd || PROJECT_ROOT });
 
   // Only allow from authenticated requests (middleware already checks)
   try {
@@ -1126,11 +1165,6 @@ app.post('/api/exec', (req, res) => {
 // ═══════════════════════════════════════
 // STRATEGY API
 // ═══════════════════════════════════════
-const STRATEGY_FILE = path.join(__dirname, 'strategy.json');
-let strategy = { vision: '', guardrails: '', directives: {} };
-try {
-  if (fs.existsSync(STRATEGY_FILE)) strategy = JSON.parse(fs.readFileSync(STRATEGY_FILE, 'utf8'));
-} catch {}
 
 app.get('/api/strategy', (req, res) => {
   res.json(strategy);
@@ -1195,11 +1229,11 @@ app.get('/api/agents/:id/stream', (req, res) => {
   if (!terminalClients[id]) terminalClients[id] = [];
   terminalClients[id].push(res);
 
-  // Subscribe to bridge lifecycle events for this agent's session
+  // Subscribe to runtime lifecycle events for this agent's session
   let unsubscribe = null;
   const sessionKey = state.agents[id]?.sessionKey;
-  if (sessionKey && bridge.connected) {
-    unsubscribe = bridge.subscribeToSession(sessionKey, (evt) => {
+  if (sessionKey && runtime.connected) {
+    unsubscribe = runtime.subscribeToAgent(sessionKey, (evt) => {
       try {
         res.write(`data: ${JSON.stringify(evt)}\n\n`);
       } catch {}
@@ -1224,11 +1258,11 @@ app.post('/api/agents/:id/inject', async (req, res) => {
   // Broadcast to terminal UI
   broadcastToTerminal(id, { type: 'inject', content: `[INJECTED] ${message}` });
 
-  // Send to real session via bridge if available
+  // Send to real session via runtime if available
   const sessionKey = state.agents[id]?.sessionKey;
-  if (sessionKey && bridge.connected) {
+  if (sessionKey && runtime.connected) {
     try {
-      const result = await bridge.sendToSession(sessionKey, message);
+      const result = await runtime.sendToAgent(sessionKey, message);
       return res.json({ ok: true, bridged: true, result });
     } catch (e) {
       return res.json({ ok: true, bridged: false, error: e.message, message: `Command injected locally to ${id}` });
@@ -1262,120 +1296,56 @@ app.get('/api/state', (req, res) => {
       completedTasks,
     },
     bridge: {
-      connected: bridge.connected,
-      url: bridge.gatewayUrl
+      connected: runtime.connected,
+      url: runtime.gatewayUrl || runtime.name,
+      runtime: runtime.name
     }
   });
 });
 
 // ═══════════════════════════════════════
-// PROJECT TEMPLATES & INIT
+// WORKFLOW ENGINE API
 // ═══════════════════════════════════════
-const TEMPLATES_DIR = path.join(CORE_DIR, 'templates', 'project-types');
-
-app.get('/api/templates', (req, res) => {
-  const templates = [];
-  try {
-    if (fs.existsSync(TEMPLATES_DIR)) {
-      fs.readdirSync(TEMPLATES_DIR).forEach(f => {
-        if (!f.endsWith('.json')) return;
-        try {
-          const content = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, f), 'utf8'));
-          templates.push(content);
-        } catch {}
-      });
-    }
-  } catch {}
-  res.json({ templates });
+app.get('/api/workflow/available', (req, res) => {
+  const workflows = workflowEngine.listAvailable();
+  res.json({ workflows });
 });
 
-app.get('/api/project/config', (req, res) => {
-  res.json({
-    name: config.name,
-    projectRoot: PROJECT_ROOT,
-    port: PORT,
-    configured: !!(config.name && PROJECT_ROOT),
-    gateway: config.gateway || {},
-    agents: config.agents || {},
-  });
+app.get('/api/workflow/state', (req, res) => {
+  res.json(workflowEngine.getWorkflowState());
 });
 
-app.post('/api/project/init', (req, res) => {
-  const { name, projectRoot, template } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+app.post('/api/workflow/start', async (req, res) => {
+  const { name, params } = req.body;
+  if (!name) return res.status(400).json({ error: 'Workflow name is required' });
 
-  // Update config
-  config.name = name;
-  config.projectRoot = projectRoot || PROJECT_ROOT;
-
-  // Load template if specified
-  let templateData = null;
-  if (template) {
-    const tplPath = path.join(TEMPLATES_DIR, `${template}.json`);
-    try {
-      if (fs.existsSync(tplPath)) {
-        templateData = JSON.parse(fs.readFileSync(tplPath, 'utf8'));
-      }
-    } catch {}
-  }
-
-  // Save updated config
-  try {
-    const configToSave = { ...config };
-    if (templateData) {
-      configToSave.template = template;
-    }
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(configToSave, null, 2));
-  } catch {}
-
-  // Apply template directives to strategy
-  if (templateData && templateData.defaultDirectives) {
-    const stratPath = path.join(__dirname, 'strategy.json');
-    let strategy = { vision: '', guardrails: '', directives: {} };
-    try { if (fs.existsSync(stratPath)) strategy = JSON.parse(fs.readFileSync(stratPath, 'utf8')); } catch {}
-
-    Object.entries(templateData.defaultDirectives).forEach(([agentId, text]) => {
-      if (!strategy.directives[agentId]) {
-        strategy.directives[agentId] = { agentId, text, history: [] };
-      }
-    });
-
-    try { fs.writeFileSync(stratPath, JSON.stringify(strategy, null, 2)); } catch {}
-  }
-
-  // Create .ag-dev in project dir
-  const agDevDir = path.join(config.projectRoot, '.ag-dev');
-  try {
-    if (!fs.existsSync(agDevDir)) fs.mkdirSync(agDevDir, { recursive: true });
-    fs.writeFileSync(path.join(agDevDir, 'config.json'), JSON.stringify({
-      name,
-      projectRoot: config.projectRoot,
-      template: template || 'custom',
-      created: new Date().toISOString(),
-    }, null, 2));
-  } catch {}
-
-  logEvent('project_init', { name, template });
-  broadcast('project_init', { name, template });
-
-  res.json({
-    success: true,
-    name,
-    projectRoot: config.projectRoot,
-    template: templateData,
-  });
+  const result = await workflowEngine.startWorkflow(name, params || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true, state: workflowEngine.getWorkflowState() });
 });
 
-app.post('/api/project/config', (req, res) => {
-  const updates = req.body;
-  if (updates.name) config.name = updates.name;
-  if (updates.projectRoot) config.projectRoot = updates.projectRoot;
+app.post('/api/workflow/pause', async (req, res) => {
+  const result = await workflowEngine.pauseWorkflow();
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true, state: workflowEngine.getWorkflowState() });
+});
 
-  try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-  } catch {}
+app.post('/api/workflow/resume', async (req, res) => {
+  const result = await workflowEngine.resumeWorkflow();
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true, state: workflowEngine.getWorkflowState() });
+});
 
-  res.json({ success: true, config });
+app.post('/api/workflow/step/:stepId/complete', async (req, res) => {
+  const result = await workflowEngine.completeStep(req.params.stepId, req.body || {});
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true, ...result, state: workflowEngine.getWorkflowState() });
+});
+
+app.post('/api/workflow/step/:stepId/fail', async (req, res) => {
+  const result = await workflowEngine.failStep(req.params.stepId, req.body.error || 'Manual failure');
+  if (!result.ok) return res.status(400).json(result);
+  res.json({ ok: true, state: workflowEngine.getWorkflowState() });
 });
 
 // ═══════════════════════════════════════
@@ -1408,3 +1378,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  ║  Auth:    ${config.auth.token ? config.auth.token.slice(0, 8) + '...' : 'none'}`);
   console.log(`  ╚═══════════════════════════════════════════╝\n`);
 });
+
+// Flush state on shutdown
+process.on('SIGINT', () => { saveStateImmediate(); process.exit(0); });
+process.on('SIGTERM', () => { saveStateImmediate(); process.exit(0); });

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Pause, Play, SkipForward, Terminal, Send, Trash2 } from 'lucide-react'
 import { useUIStore } from '../stores/uiStore'
 import { useAgentStore, type AgentState } from '../stores/agentStore'
-import { getAgentMeta, getSquadColor, colors } from '../lib/theme'
+import { getAgentMetaDynamic, getSquadColorDynamic, colors } from '../lib/theme'
 
 interface TerminalLine {
   id: string
@@ -37,20 +37,21 @@ const TYPE_COLORS: Record<TerminalLine['type'], string> = {
 
 const defaultState: AgentState = {
   status: 'idle', currentTask: null, checklist: [], progress: 0,
+  sessionKey: null, model: null, tokens: null,
 }
 
 export const TerminalView = memo(function TerminalView() {
   const { selectedAgentId, selectAgent, setView } = useUIStore()
-  const { agents } = useAgentStore()
+  const { agents, agentMetas } = useAgentStore()
   const [lines, setLines] = useState<TerminalLine[]>([])
   const [input, setInput] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const meta = selectedAgentId ? getAgentMeta(selectedAgentId) : null
+  const meta = selectedAgentId ? getAgentMetaDynamic(selectedAgentId, agentMetas) : null
   const state = selectedAgentId ? (agents[selectedAgentId] || defaultState) : defaultState
-  const squadColor = meta ? getSquadColor(meta.squad) : { main: '#666' }
+  const squadColor = meta ? getSquadColorDynamic(meta.squad) : { main: '#666', light: '#888', bg: 'rgba(102,102,102,0.1)', glow: 'rgba(102,102,102,0.3)' }
 
   // SSE stream for agent events
   useEffect(() => {
@@ -72,9 +73,7 @@ export const TerminalView = memo(function TerminalView() {
       } catch {}
     }
 
-    es.onerror = () => {
-      // Reconnect handled by browser
-    }
+    es.onerror = () => {}
 
     return () => es.close()
   }, [selectedAgentId])
@@ -131,7 +130,6 @@ export const TerminalView = memo(function TerminalView() {
     const text = input.trim()
     setInput('')
 
-    // Add local line
     setLines(prev => [...prev, {
       id: `inject-${Date.now()}`,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),

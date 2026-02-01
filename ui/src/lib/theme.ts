@@ -40,7 +40,20 @@ export const motion = {
 } as const
 
 // Squad assignments for agents
-export type SquadId = 'builders' | 'thinkers' | 'guardians' | 'creators'
+export type SquadId = string
+
+export interface SquadColorSet {
+  main: string
+  light: string
+  bg: string
+  glow: string
+}
+
+export interface SquadDef {
+  label: string
+  icon: string
+  agents: string[]
+}
 
 export interface AgentMeta {
   id: string
@@ -51,19 +64,66 @@ export interface AgentMeta {
   role: string
 }
 
-export const SQUADS: Record<SquadId, { label: string; icon: string; agents: string[] }> = {
+// ── Dynamic color palette for unknown squads ──
+const SQUAD_COLOR_PALETTE: Array<{ main: string; light: string }> = [
+  { main: '#3B82F6', light: '#60A5FA' },  // blue
+  { main: '#A855F7', light: '#C084FC' },  // purple
+  { main: '#EF4444', light: '#F87171' },  // red
+  { main: '#10B981', light: '#34D399' },  // green
+  { main: '#F59E0B', light: '#FBBF24' },  // amber
+  { main: '#EC4899', light: '#F472B6' },  // pink
+  { main: '#06B6D4', light: '#22D3EE' },  // cyan
+  { main: '#8B5CF6', light: '#A78BFA' },  // violet
+]
+
+// Known squad colors (keep existing assignments stable)
+const KNOWN_SQUAD_COLORS: Record<string, SquadColorSet> = {
+  builders: colors.squads.builders,
+  thinkers: colors.squads.thinkers,
+  guardians: colors.squads.guardians,
+  creators: colors.squads.creators,
+}
+
+// Cache for dynamically assigned squad colors
+const dynamicSquadColorCache: Record<string, SquadColorSet> = {}
+let nextPaletteIndex = 0
+
+function makeSquadColorSet(c: { main: string; light: string }): SquadColorSet {
+  return {
+    main: c.main,
+    light: c.light,
+    bg: `${c.main}1A`,   // ~10% opacity
+    glow: `${c.main}4D`, // ~30% opacity
+  }
+}
+
+export function getSquadColorDynamic(squadId: string): SquadColorSet {
+  // Known squad — return existing color
+  if (KNOWN_SQUAD_COLORS[squadId]) return KNOWN_SQUAD_COLORS[squadId]
+  // Already assigned
+  if (dynamicSquadColorCache[squadId]) return dynamicSquadColorCache[squadId]
+  // Assign from palette (cycle)
+  const palette = SQUAD_COLOR_PALETTE[nextPaletteIndex % SQUAD_COLOR_PALETTE.length]
+  nextPaletteIndex++
+  const cs = makeSquadColorSet(palette)
+  dynamicSquadColorCache[squadId] = cs
+  return cs
+}
+
+export function getAgentMetaDynamic(id: string, metas: AgentMeta[]): AgentMeta | undefined {
+  return metas.find(a => a.id === id)
+}
+
+// ── Default / fallback data ──
+
+export const DEFAULT_SQUADS: Record<string, SquadDef> = {
   builders: { label: 'Builders', icon: '🏗️', agents: ['dev', 'devops', 'data-engineer', 'architect'] },
   thinkers: { label: 'Thinkers', icon: '🧠', agents: ['analyst', 'pm', 'po'] },
   guardians: { label: 'Guardians', icon: '🛡️', agents: ['qa', 'sm', 'aios-master'] },
   creators: { label: 'Creators', icon: '🎨', agents: ['ux-design-expert', 'squad-creator'] },
 }
 
-/**
- * Default agent definitions — used as fallback.
- * The real source of truth is the server at `/api/agents/meta`.
- * These will be replaced with dynamic data in Sprint 5.
- */
-export const AGENTS: AgentMeta[] = [
+export const DEFAULT_AGENTS: AgentMeta[] = [
   // Builders
   { id: 'dev', name: 'Developer', shortName: 'DEV', icon: '⚡', squad: 'builders', role: 'Fullstack development' },
   { id: 'devops', name: 'DevOps', shortName: 'OPS', icon: '🔧', squad: 'builders', role: 'Infrastructure & CI/CD' },
@@ -82,14 +142,19 @@ export const AGENTS: AgentMeta[] = [
   { id: 'squad-creator', name: 'Squad Creator', shortName: 'SQD', icon: '👥', squad: 'creators', role: 'Team formation & squads' },
 ]
 
+// ── Legacy exports (aliases for backward compat) ──
+
+export const SQUADS = DEFAULT_SQUADS
+export const AGENTS = DEFAULT_AGENTS
+
 export function getAgentMeta(id: string): AgentMeta | undefined {
-  return AGENTS.find(a => a.id === id)
+  return DEFAULT_AGENTS.find(a => a.id === id)
 }
 
-export function getSquadColor(squad: SquadId) {
-  return colors.squads[squad]
+export function getSquadColor(squad: string): SquadColorSet {
+  return getSquadColorDynamic(squad)
 }
 
 export function getAgentSquad(agentId: string): SquadId {
-  return AGENTS.find(a => a.id === agentId)?.squad || 'builders'
+  return DEFAULT_AGENTS.find(a => a.id === agentId)?.squad || 'builders'
 }
