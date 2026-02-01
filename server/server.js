@@ -924,8 +924,93 @@ app.post('/api/project/config', (req, res) => {
 });
 
 // ═══════════════════════════════════════
-// PROJECT CLONE — Clone from GitHub URL
+// PROJECT SETUP — Clone repo + create branch (one step)
 // ═══════════════════════════════════════
+app.post('/api/project/setup', (req, res) => {
+  const { url, branch } = req.body;
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'Repository URL is required' });
+  }
+
+  const gitUrlMatch = url.match(/github\.com\/[\w.-]+\/([\w.-]+?)(?:\.git)?$/i);
+  if (!gitUrlMatch) {
+    return res.status(400).json({ error: 'Invalid GitHub URL' });
+  }
+
+  const repoName = gitUrlMatch[1].replace(/\.git$/, '');
+  const clonePath = path.join('/root', repoName);
+  const branchName = branch || `ag-dev/${repoName}`;
+
+  try {
+    // Step 1: Clone if not exists, pull if exists
+    if (fs.existsSync(path.join(clonePath, '.git'))) {
+      // Already cloned — fetch latest
+      try {
+        execFileSync('git', ['fetch', '--all'], { cwd: clonePath, timeout: 30000, stdio: 'pipe' });
+        execFileSync('git', ['pull', '--ff-only'], { cwd: clonePath, timeout: 30000, stdio: 'pipe' });
+      } catch (e) {
+        // Pull failed (diverged, etc) — not fatal, we'll work with what we have
+      }
+    } else {
+      // Clone fresh — try gh first (handles auth), fallback to git
+      let cloned = false;
+      try {
+        execFileSync('gh', ['auth', 'status'], { timeout: 5000, stdio: 'pipe' });
+        execFileSync('gh', ['repo', 'clone', url.replace(/^https?:\/\/github\.com\//, ''), clonePath], {
+          timeout: 120000, stdio: 'pipe',
+        });
+        cloned = true;
+      } catch {}
+
+      if (!cloned) {
+        execFileSync('git', ['clone', url, clonePath], { timeout: 120000, stdio: 'pipe' });
+      }
+    }
+
+    if (!fs.existsSync(clonePath)) {
+      return res.status(500).json({ error: 'Repository directory not found after clone' });
+    }
+
+    // Step 2: Create and checkout working branch
+    try {
+      // Check if branch already exists
+      const branches = execFileSync('git', ['branch', '--list', branchName], { cwd: clonePath, timeout: 5000, stdio: 'pipe' }).toString().trim();
+      if (branches) {
+        execFileSync('git', ['checkout', branchName], { cwd: clonePath, timeout: 5000, stdio: 'pipe' });
+      } else {
+        execFileSync('git', ['checkout', '-b', branchName], { cwd: clonePath, timeout: 5000, stdio: 'pipe' });
+      }
+    } catch (e) {
+      // Branch creation failed — work on current branch
+    }
+
+    // Get actual current branch
+    let currentBranch = branchName;
+    try {
+      currentBranch = execFileSync('git', ['branch', '--show-current'], { cwd: clonePath, timeout: 5000, stdio: 'pipe' }).toString().trim();
+    } catch {}
+
+    // Update AG Dev config to point to this project
+    config.name = repoName.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    config.projectRoot = clonePath;
+    try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2)); } catch {}
+
+    logEvent('project_setup', { url, path: clonePath, branch: currentBranch, name: config.name });
+
+    res.json({
+      ok: true,
+      path: clonePath,
+      name: config.name,
+      branch: currentBranch,
+      message: `Ready — working on branch ${currentBranch}`,
+    });
+  } catch (e) {
+    const errMsg = e.stderr ? e.stderr.toString().trim() : e.message;
+    res.status(500).json({ error: `Setup failed: ${errMsg}` });
+  }
+});
+
+// Legacy clone endpoint (kept for compatibility)
 app.post('/api/project/clone', async (req, res) => {
   const { url } = req.body;
   if (!url || typeof url !== 'string') {
