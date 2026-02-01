@@ -20,6 +20,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawn } = require('child_process');
+const { ClawdbotBridge } = require('./ws-bridge');
 
 const app = express();
 
@@ -373,6 +374,69 @@ app.use((req, res, next) => {
   const indexPath = path.join(staticDir, 'index.html');
   if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
   next();
+});
+
+// ═══════════════════════════════════════
+// CLAWDBOT BRIDGE — Connect to the brain
+// ═══════════════════════════════════════
+const bridge = new ClawdbotBridge({
+  onEvent: (event) => {
+    broadcast('clawdbot_event', { event });
+  },
+  onAgentReply: (reply) => {
+    if (reply.type === 'delta') {
+      // Stream agent text to UI
+      broadcast('agent_stream', { text: reply.text, sessionKey: reply.sessionKey });
+    }
+    if (reply.type === 'complete') {
+      // Agent finished - push to chat
+      const msg = { id: Date.now(), from: 'bot', text: reply.summary || '✓ Complete', time: new Date().toISOString() };
+      if (!state.chat) state.chat = { messages: [] };
+      state.chat.messages.push(msg);
+      saveState();
+      broadcast('chat', { message: msg });
+    }
+  }
+});
+
+// Try to connect to Clawdbot (non-blocking, works without it too)
+try { bridge.connect(); } catch(e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
+
+// Bridge status
+app.get('/api/bridge/status', (req, res) => {
+  res.json({ connected: bridge.connected, gatewayUrl: bridge.gatewayUrl });
+});
+
+// Send message through Clawdbot (real AI processing)
+app.post('/api/bridge/send', async (req, res) => {
+  const { message, sessionKey } = req.body;
+  try {
+    const result = sessionKey
+      ? await bridge.sendToSession(sessionKey, message)
+      : await bridge.sendMessage(message);
+    res.json(result);
+  } catch(e) {
+    res.json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════
+// EXEC — Run commands (for agent operations)
+// ═══════════════════════════════════════
+app.post('/api/exec', (req, res) => {
+  const { command, cwd } = req.body;
+  if (!command) return res.status(400).json({ error: 'No command' });
+  try {
+    const result = execSync(command, {
+      cwd: cwd || PROJECT_ROOT,
+      timeout: 30000,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024
+    });
+    res.json({ success: true, output: result });
+  } catch(e) {
+    res.json({ success: false, output: e.stdout || '', error: e.stderr || e.message });
+  }
 });
 
 // ═══════════════════════════════════════
