@@ -10,7 +10,6 @@ import {
   Position,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import dagre from '@dagrejs/dagre'
 import { useAgentStore } from '../stores/agentStore'
 import { useUIStore } from '../stores/uiStore'
 import { getSquadColorDynamic, colors, type AgentMeta, type SquadDef } from '../lib/theme'
@@ -18,27 +17,54 @@ import { getSquadColorDynamic, colors, type AgentMeta, type SquadDef } from '../
 const NODE_WIDTH = 140
 const NODE_HEIGHT = 50
 
-function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
-  const g = new dagre.graphlib.Graph()
-  g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', ranksep: 80, nodesep: 40 })
+/**
+ * Simple hierarchical layout — no dagre dependency.
+ * Places nodes in 3 tiers: project → squads → agents
+ */
+function applySimpleLayout(
+  nodes: Node[],
+  edges: Edge[],
+  squads: Record<string, SquadDef>,
+  agentMetas: AgentMeta[],
+): Node[] {
+  const squadIds = Object.keys(squads)
+  const totalSquads = squadIds.length || 1
+  const SQUAD_SPACING = 200
+  const AGENT_SPACING = 160
+  const ROW_GAP = 100
 
-  nodes.forEach(node => {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
-  })
-  edges.forEach(edge => {
-    g.setEdge(edge.source, edge.target)
+  // Tier positions
+  const totalWidth = Math.max(totalSquads * SQUAD_SPACING, 600)
+  const centerX = totalWidth / 2
+
+  const posMap = new Map<string, { x: number; y: number }>()
+
+  // Project node — top center
+  posMap.set('project', { x: centerX - NODE_WIDTH / 2, y: 0 })
+
+  // Squad nodes — second row, evenly spaced
+  squadIds.forEach((sid, i) => {
+    const x = ((i + 0.5) / totalSquads) * totalWidth - NODE_WIDTH / 2
+    posMap.set(`squad-${sid}`, { x, y: ROW_GAP + NODE_HEIGHT })
   })
 
-  dagre.layout(g)
+  // Agent nodes — third row, grouped under their squad
+  squadIds.forEach((sid, si) => {
+    const squadAgents = agentMetas.filter(a => a.squad === sid)
+    const squadCenterX = ((si + 0.5) / totalSquads) * totalWidth
+    const agentsTotalWidth = squadAgents.length * AGENT_SPACING
+    const startX = squadCenterX - agentsTotalWidth / 2
 
-  return nodes.map(node => {
-    const pos = g.node(node.id)
-    return {
-      ...node,
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
-    }
+    squadAgents.forEach((agent, ai) => {
+      const x = startX + (ai + 0.5) * AGENT_SPACING - NODE_WIDTH / 2
+      posMap.set(`agent-${agent.id}`, { x, y: (ROW_GAP + NODE_HEIGHT) * 2 })
+    })
   })
+
+  return nodes.map(node => ({
+    ...node,
+    position: posMap.get(node.id) || { x: 0, y: 0 },
+  }))
 }
 
 function buildGraph(
@@ -151,8 +177,8 @@ function buildGraph(
     }
   }
 
-  // Apply dagre layout
-  const layoutedNodes = applyDagreLayout(nodes, edges)
+  // Apply simple layout (no dagre)
+  const layoutedNodes = applySimpleLayout(nodes, edges, squads, agentMetas)
   return { nodes: layoutedNodes, edges }
 }
 
