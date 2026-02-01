@@ -131,10 +131,14 @@ function DependencyArrows({ tasks, dayWidth, labelWidth, agentMetas }: { tasks: 
 
   if (arrows.length === 0) return null
 
+  const svgHeight = tasks.length * ROW_HEIGHT
+
   return (
     <svg
       className="absolute top-0 left-0 pointer-events-none"
-      style={{ left: `${labelWidth}px`, width: `calc(100% - ${labelWidth}px)`, height: tasks.length * ROW_HEIGHT }}
+      style={{ left: `${labelWidth}px`, width: `calc(100% - ${labelWidth}px)`, height: svgHeight }}
+      viewBox={`0 0 100 ${svgHeight}`}
+      preserveAspectRatio="none"
     >
       <defs>
         <marker id="arrow-head" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
@@ -147,12 +151,13 @@ function DependencyArrows({ tasks, dayWidth, labelWidth, agentMetas }: { tasks: 
         return (
           <path
             key={i}
-            d={`M ${a.x1}% ${a.y1} C ${midX}% ${a.y1}, ${midX}% ${a.y2}, ${a.x2}% ${a.y2}`}
+            d={`M ${a.x1} ${a.y1} C ${midX} ${a.y1}, ${midX} ${a.y2}, ${a.x2} ${a.y2}`}
             fill="none"
             stroke={a.color}
             strokeWidth={1.5}
             strokeDasharray="4 2"
             markerEnd="url(#arrow-head)"
+            vectorEffect="non-scaling-stroke"
           />
         )
       })}

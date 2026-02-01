@@ -83,27 +83,8 @@ const staticDir = fs.existsSync(uiDist) ? uiDist : uiPublic;
 app.use(express.static(staticDir));
 
 // ═══════════════════════════════════════
-// AUTH MIDDLEWARE
+// AUTH: Disabled — server only accessible via Tailscale (private network)
 // ═══════════════════════════════════════
-function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid Authorization header. Use: Bearer <token>' });
-  }
-  const token = authHeader.slice(7);
-  if (token !== config.auth.token) {
-    return res.status(403).json({ error: 'Invalid auth token' });
-  }
-  next();
-}
-
-// Apply auth middleware to all POST/PUT/DELETE routes
-app.use((req, res, next) => {
-  if (['POST', 'PUT', 'DELETE'].includes(req.method) && req.path.startsWith('/api')) {
-    return requireAuth(req, res, next);
-  }
-  next();
-});
 
 // ═══════════════════════════════════════
 // STATE MANAGEMENT
@@ -169,6 +150,8 @@ app.get('/api/sse', (req, res) => {
     'X-Accel-Buffering': 'no'
   });
   res.write(`data: ${JSON.stringify({ type: 'connected', time: new Date().toISOString() })}\n\n`);
+  // Send current bridge status immediately so UI knows the connection state
+  res.write(`data: ${JSON.stringify({ type: 'bridge_status', connected: runtime.connected, gatewayUrl: runtime.gatewayUrl || '', latency: 0 })}\n\n`);
   clients.add(res);
   req.on('close', () => clients.delete(res));
 });
@@ -256,7 +239,7 @@ function loadAgentDefinitions() {
 app.get('/api/agents', (req, res) => {
   const agents = loadAgentDefinitions().map(a => ({
     ...a,
-    state: state.agents[a.id] || { status: 'idle', currentTask: null, checklist: [], progress: 0 }
+    state: { status: 'idle', currentTask: null, checklist: [], progress: 0, output: '', filesChanged: [], activityHistory: [], ...(state.agents[a.id] || {}) }
   }));
   res.json({ agents });
 });
@@ -632,7 +615,7 @@ app.get('/api/docs', (req, res) => {
 app.get('/api/docs/read', (req, res) => {
   const fp = req.query.path;
   if (!fp) return res.status(400).json({ error: 'No path' });
-  const resolved = path.resolve(fp);
+  const resolved = path.isAbsolute(fp) ? path.resolve(fp) : path.resolve(PROJECT_ROOT, fp);
   if (!resolved.startsWith(PROJECT_ROOT) && !resolved.startsWith(CORE_DIR)) {
     return res.status(403).json({ error: 'Access denied' });
   }
@@ -646,7 +629,7 @@ app.get('/api/docs/read', (req, res) => {
 app.post('/api/docs/save', (req, res) => {
   const { path: fp, content } = req.body;
   if (!fp) return res.status(400).json({ error: 'No path' });
-  const resolved = path.resolve(fp);
+  const resolved = path.isAbsolute(fp) ? path.resolve(fp) : path.resolve(PROJECT_ROOT, fp);
   if (!resolved.startsWith(PROJECT_ROOT) && !resolved.startsWith(CORE_DIR)) {
     return res.status(403).json({ error: 'Access denied' });
   }
@@ -884,6 +867,8 @@ app.get('/api/project/config', (req, res) => {
 
   res.json({
     configured: !!(config.projectRoot && config.name),
+    name: config.name || '',
+    projectRoot: config.projectRoot || '',
     config: projectConfig,
     agDevConfig
   });
@@ -1239,6 +1224,15 @@ const runtime = createRuntime(config, {
       for (const [agentId, agentState] of Object.entries(state.agents)) {
         if (agentState.sessionKey === sessionKey) {
           broadcastToTerminal(agentId, evt);
+
+          // Update agent state based on lifecycle events
+          const eventType = evt.event || evt.type || '';
+          if (eventType.includes('complete') || eventType.includes('done')) {
+            agentState.status = 'done';
+            agentState.progress = 100;
+            saveState();
+            broadcast('agent_update', { agentId, state: agentState });
+          }
           break;
         }
       }
@@ -1251,6 +1245,36 @@ const bridge = runtime.bridge || runtime;
 
 // Try to connect (non-blocking, works without gateway too)
 try { runtime.connect(); } catch (e) { console.log('  ℹ Running standalone (no Clawdbot)'); }
+
+// ─── Agent Output Poller ───
+// Poll active agent sessions for output updates every 10s
+setInterval(async () => {
+  if (!runtime.connected) return;
+  for (const [agentId, agentState] of Object.entries(state.agents)) {
+    if (!agentState.sessionKey || agentState.status === 'idle' || agentState.status === 'done') continue;
+    try {
+      const result = await runtime.getAgentHistory(agentState.sessionKey);
+      if (result.ok && result.messages?.length) {
+        // Find the last assistant message
+        const lastAssistant = [...result.messages].reverse().find(m => m.role === 'assistant');
+        if (lastAssistant) {
+          let text = '';
+          const content = lastAssistant.content;
+          if (typeof content === 'string') text = content;
+          else if (Array.isArray(content)) {
+            const textBlock = content.find(c => c.type === 'text');
+            if (textBlock) text = textBlock.text || '';
+          }
+          if (text && text !== agentState.output) {
+            agentState.output = text;
+            saveState();
+            broadcast('agent_update', { agentId, state: { ...agentState, output: text } });
+          }
+        }
+      }
+    } catch {}
+  }
+}, 10000);
 
 // ─── Workflow Engine ───
 const workflowEngine = new WorkflowEngine({
@@ -1440,7 +1464,8 @@ app.get('/api/state', (req, res) => {
     const agentFiles = fs.readdirSync(AGENTS_DIR).filter(f => f.endsWith('.md'));
     agentFiles.forEach(f => {
       const id = f.replace('.md', '');
-      agentStates[id] = state.agents[id] || { status: 'idle', currentTask: null, progress: 0, checklist: [] };
+      const defaults = { status: 'idle', currentTask: null, progress: 0, checklist: [], output: '', filesChanged: [], activityHistory: [] };
+      agentStates[id] = { ...defaults, ...(state.agents[id] || {}) };
     });
   } catch {}
 
@@ -1510,6 +1535,12 @@ app.post('/api/workflow/step/:stepId/fail', async (req, res) => {
 // ═══════════════════════════════════════
 // SPA CATCH-ALL
 // ═══════════════════════════════════════
+// Unknown API routes return 404 JSON
+app.all('/api/{*splat}', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// SPA fallback for frontend routes
 app.get('/{*splat}', (req, res) => {
   const indexPath = path.join(staticDir, 'index.html');
   if (fs.existsSync(indexPath)) {
