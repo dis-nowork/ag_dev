@@ -57,7 +57,8 @@ class ClawdbotBridge {
 
     this.ws.on('open', () => {
       this._connectAttempts = 0;
-      this._sendConnectFrame();
+      // Don't send connect frame yet — wait for connect.challenge from gateway
+      // The challenge handler in _handleMessage will trigger _sendConnectFrame
     });
 
     this.ws.on('message', (data) => {
@@ -89,18 +90,19 @@ class ClawdbotBridge {
   }
 
   _sendConnectFrame() {
+    const id = this._nextId();
     const connectFrame = {
       type: 'req',
-      id: this._nextId(),
+      id,
       method: 'connect',
       params: {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'ag-dev',
-          version: '1.0.0',
+          id: 'gateway-client',
+          version: '2.1.0',
           platform: 'node',
-          mode: 'operator'
+          mode: 'backend'
         },
         role: 'operator',
         scopes: ['operator.read', 'operator.write'],
@@ -108,9 +110,15 @@ class ClawdbotBridge {
         commands: [],
         permissions: {},
         auth: this.token ? { token: this.token } : {},
-        userAgent: 'ag-dev/1.0.0'
+        userAgent: 'ag-dev/2.1.0'
       }
     };
+    // Register as pending connect request so _handleMessage recognizes the response
+    this.pendingRequests.set(id, {
+      _isConnect: true,
+      resolve: () => {},
+      time: Date.now()
+    });
     this._send(connectFrame);
   }
 
@@ -161,10 +169,20 @@ class ClawdbotBridge {
 
     // Handle events from gateway
     if (msg.type === 'event') {
-      this.onEvent(msg);
-
       const event = msg.event || '';
       const payload = msg.payload || {};
+
+      // Handle connect challenge (nonce) — MUST be checked before generic event handling
+      // Gateway sends this as the first message after WS open
+      // We respond with the connect frame (token auth, no signing needed for local)
+      if (event === 'connect.challenge') {
+        this._challengeNonce = payload.nonce;
+        this._sendConnectFrame();
+        return;
+      }
+
+      // Forward to generic event handler
+      this.onEvent(msg);
 
       // Lifecycle events (tool calls, thinking, completion, etc)
       if (event.startsWith('session.') || event.startsWith('agent.') || event.startsWith('lifecycle.')) {
@@ -184,12 +202,6 @@ class ClawdbotBridge {
         this.onEvent({ type: 'consent_pending', payload });
       }
 
-      return;
-    }
-
-    // Handle connect challenge (nonce)
-    if (msg.type === 'event' && msg.event === 'connect.challenge') {
-      // For now we just proceed with connect — challenge signing not implemented
       return;
     }
   }
