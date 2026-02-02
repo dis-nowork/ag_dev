@@ -13,29 +13,37 @@
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────┐    ┌───────────┐    ┌──────────────────────┐      │
-│  │  UI      │◄──►│  Express  │◄──►│  Módulos do Server   │      │
+│  │  UI      │◄──►│  Express  │◄──►│  Módulos ATIVOS       │      │
 │  │  React   │ SSE│  Server   │    │                      │      │
-│  │  + Zustand│   │  :3456    │    │  • Orchestrator      │      │
-│  └──────────┘    │           │    │  • TerminalManager   │      │
-│                  │  45 APIs  │    │  • SquadManager      │      │
-│                  │  + SSE    │    │  • WorkflowEngine    │      │
-│                  │  + Health │    │  • RalphLoop          │      │
-│                  └─────┬─────┘    │  • AgentGraph        │      │
-│                        │          │  • MemorySystem      │      │
+│  │  + Zustand│   │  :3456    │    │  • Orchestrator ★    │      │
+│  └──────────┘    │           │    │  • TerminalManager ★ │      │
+│                  │  55 APIs  │    │  • SquadManager      │      │
+│                  │  + SSE    │    │  • RalphLoop          │      │
+│                  │  + Health │    │  • AgentGraph        │      │
+│                  └─────┬─────┘    │  • MemorySystem      │      │
 │                        │          │  • StateManager      │      │
-│                        ▼          │  • SuperSkillRegistry│      │
-│                  ┌───────────┐    └──────────────────────┘      │
-│                  │  Runtime  │                                    │
-│                  │  Layer    │    ┌──────────────────────┐      │
-│                  │           │    │  Core Assets          │      │
-│                  │ Clawdbot ◄├───►│  • 14 Agent Personas │      │
-│                  │ Standalone│    │  • 10 Workflows YAML │      │
-│                  │ Resilient │    │  •  5 Squad Configs   │      │
-│                  └───────────┘    │  • 31 SuperSkills     │      │
-│                                   │  • Template Engine    │      │
+│                        │          │  • SuperSkillRegistry│      │
+│                        │          └──────────────────────┘      │
+│                        │                                         │
+│                        │          ┌──────────────────────┐      │
+│                        ▼          │  Core Assets          │      │
+│                  ┌───────────┐    │  • 14 Agent Personas │      │
+│                  │ Claude    │    │  • 10 Workflows YAML │      │
+│                  │ Code CLI  │    │  •  5 Squad Configs   │      │
+│                  │ (via PTY) │    │  • 31 SuperSkills     │      │
+│                  └───────────┘    │  • Template Engine    │      │
 │                                   └──────────────────────┘      │
+│  ┌──────────────────────────────────────────────────────┐       │
+│  │  📦 Módulos PREPARADOS (existem, não integrados)     │       │
+│  │  • WorkflowEngine    • RuntimeFactory                │       │
+│  │  • ClawdbotRuntime   • StandaloneRuntime             │       │
+│  │  • WS-Bridge (Clawdbot Gateway connector)            │       │
+│  └──────────────────────────────────────────────────────┘       │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
+
+★ = Orchestrator é o cérebro. Spawna agents via TerminalManager
+    usando Claude Code CLI diretamente (não passa pelo Runtime Layer).
 ```
 
 **Em uma frase:** AG Dev é uma plataforma que orquestra múltiplos agentes de IA (cada um com uma persona especializada) para construir software de forma autônoma, usando workflows YAML, squads de agentes, terminais PTY reais, e um sistema de memória em 3 camadas.
@@ -52,7 +60,7 @@ config.json → merge com env vars (AG_DEV_PORT, AG_DEV_HOST, AG_DEV_DATA_DIR)
 ```
 O `config.json` define portas, limites de terminais, paths dos agents/workflows, config do Ralph, e diretórios de dados. Environment variables podem sobrescrever tudo.
 
-### Passo 2: Inicialização dos Módulos (ordem exata)
+### Passo 2: Inicialização dos Módulos (ordem exata no server.js)
 
 ```
 1. TerminalManager(config.terminals)     → Gerenciador de PTY terminals
@@ -61,10 +69,11 @@ O `config.json` define portas, limites de terminais, paths dos agents/workflows,
 4. SquadManager(orchestrator)             → Gerenciador de squads
 5. RalphLoop(terminal, options)           → Motor de desenvolvimento autônomo
 6. SuperSkillRegistry(superskillsDir)     → Registro de 31 SuperSkills
-7. AgentGraph(dataDir)                    → Grafo temporal de interações
-8. RuntimeFactory.createRuntime(config)   → Runtime de execução de agentes
-9. WorkflowEngine(runtime, events)        → Motor de execução de workflows
+7. AgentGraph(dataDir)                    → Grafo temporal de interações + auto-save 30s
+8. MemorySystem(baseDir)                  → Memória 3 camadas (hot/warm/cold)
 ```
+
+> ⚠️ **Nota:** `WorkflowEngine`, `RuntimeFactory`, `ClawdbotRuntime`, `StandaloneRuntime` e `WS-Bridge` existem como arquivos prontos mas **NÃO são inicializados pelo server.js atual**. O Orchestrator executa workflows internamente e spawna agents via `TerminalManager.spawnClaudeAgent()` (Claude Code CLI direto). Esses módulos são infraestrutura preparada para futura integração com o Clawdbot Gateway.
 
 ### Passo 3: Carregamento de Assets
 O Orchestrator carrega automaticamente:
@@ -75,25 +84,21 @@ O Orchestrator carrega automaticamente:
 
 ### Passo 4: Server Express sobe
 - Middleware: CORS + JSON parsing
-- 45 endpoints API registrados
+- **55 endpoints** API registrados
 - SSE (Server-Sent Events) endpoint para UI real-time
 - Serve `ui-dist/` como static files
 - Health check em `/health`
-
-### Passo 5: Runtime conecta
-- Tenta conectar ao Clawdbot Gateway via WebSocket
-- Se falhar → degrada para Standalone Runtime (modo demo)
-- ResilientRuntime protege contra crashes
 
 ### Output no Console:
 ```
 Loaded 14 agent definitions
 Loaded 10 workflows
 Loaded 5 squad definitions
-  ℹ Runtime: clawdbot → ws://127.0.0.1:18789
   30 SuperSkills loaded across 6 categories
 AG Dev server listening on http://0.0.0.0:3456
 ```
+
+> **Nota sobre Runtime:** O server **não** conecta ao Clawdbot Gateway atualmente. Agents são executados diretamente via `claude --print --dangerously-skip-permissions -p <prompt>` em PTY terminals gerenciados pelo TerminalManager. A integração com Gateway (via ws-bridge + runtime-factory) está preparada mas não ativada.
 
 ---
 
@@ -111,46 +116,85 @@ AG Dev server listening on http://0.0.0.0:3456
 - Broadcast de eventos para todos os clientes conectados
 - Error handler middleware centralizado
 
-**Como conecta com outros:**
+**Como conecta com outros (módulos realmente importados):**
 ```
 server.js ──uses──► TerminalManager (spawn/kill/write terminals)
            ──uses──► StateManager (read/update estado global)
-           ──uses──► Orchestrator (list agents, start workflows)
+           ──uses──► Orchestrator (list agents, execute workflows, spawn agents)
            ──uses──► SquadManager (CRUD squads, activate)
            ──uses──► RalphLoop (load PRD, start/pause/resume)
            ──uses──► SuperSkillRegistry (list/search/run superskills)
            ──uses──► AgentGraph (temporal queries, event tracking)
-           ──uses──► WorkflowEngine (execute/control workflows)
            ──uses──► MemorySystem (read/write agent memory)
-           ──uses──► RuntimeFactory (create agent runtime)
+```
+
+**Módulos que existem mas NÃO são usados pelo server.js:**
+```
+           ✗ WorkflowEngine (workflow-engine.js) — substituído pelo Orchestrator interno
+           ✗ RuntimeFactory (runtimes/runtime-factory.js) — não integrado
+           ✗ ClawdbotRuntime (runtimes/clawdbot-runtime.js) — não integrado
+           ✗ StandaloneRuntime (runtimes/standalone-runtime.js) — não integrado
+           ✗ WS-Bridge (ws-bridge.js) — não integrado (usado só pelo ClawdbotRuntime)
 ```
 
 ---
 
-### 2. `orchestrator.js` (758 linhas) — O Cérebro
+### 2. `orchestrator.js` (758 linhas) — O Cérebro ★
 
-**O que faz:** Coordena agents e distribui tasks. É o cérebro que sabe quem faz o quê.
+**O que faz:** É o módulo mais importante. Coordena agents, executa workflows, e distribui tasks. Faz TUDO: carrega definições, parseia workflows, spawna agents, monitora execução.
 
 **Como funciona:**
-1. **Na inicialização:** Lê todos os `.md` de `core/agents/` e parseia cada um extraindo: nome, role, expertise, behavior, directive
+1. **Na inicialização:** Lê todos os `.md` de `core/agents/` e parseia cada um extraindo: nome, role, description
 2. **Na inicialização:** Lê todos os `.yaml` de `core/workflows/` e parseia a estrutura de fases e sequências
-3. **Em runtime:** Quando solicitado, spawna agents (via TerminalManager) e atribui tasks de acordo com o workflow ativo
+3. **Em runtime:** Spawna agents via `TerminalManager.spawnClaudeAgent()` com prompts construídos a partir das personas
+
+**Execução de Workflows (implementação interna, NÃO usa WorkflowEngine):**
+```
+orchestrator.executeWorkflow(name, task)
+  → Carrega workflow da Map
+  → Cria workflowExecution com steps, timing, events
+  → executeWorkflowSteps() → loop pelos steps
+    → Para cada step:
+        1. Verifica dependências (areStepDependenciesMet)
+        2. contextualizeStepTask() → combina step + task original
+        3. spawnAgent(agentName, contextualizedTask) → PTY
+        4. monitorStepAgent() → detecta inatividade (30s timeout)
+        5. Emite SSE events para UI
+  → waitForWorkflowCompletion()
+```
+
+**Spawning de Agents:**
+```javascript
+spawnAgent(agentName, task) {
+  definition = this.agentDefinitions.get(agentName)
+  prompt = createAgentPrompt(definition, task)
+  // prompt = "You are {name}, {role}. {description}. Your current task: {task}"
+  terminal = this.terminalManager.spawnClaudeAgent(prompt)
+  // → executa: claude --print --dangerously-skip-permissions -p <prompt>
+  this.stateManager.updateAgent(terminal.id, {...})
+  return terminal
+}
+```
 
 **Estrutura de dados:**
 ```javascript
 this.agentDefinitions = Map<string, AgentDefinition>  // 14 agents
 this.workflows = Map<string, Workflow>                  // 10 workflows
 this.activeWorkflows = Map<string, WorkflowInstance>   // execuções ativas
+this.workflowExecution = {                              // workflow corrente
+  id, name, status, task, currentStep, steps,
+  completedSteps, activeAgents, stepTimings, events
+}
 ```
 
 **Parsing de Agent (Markdown → Object):**
 ```markdown
-# Agent: Dex (Developer)           → name: "Dex", id: "dev"
-## Role                             → role: "Expert Senior Software Engineer..."
-## Expertise                        → expertise: ["Full-stack development", ...]
-## Behavior                         → behavior: ["Execute tasks sequentially...", ...]
-## Current Directive                → directive: "{{directive}}" (runtime injection)
+# Agent: Dex (Developer)           → role: "Agent: Dex (Developer)"
+  (parses first # heading)           → name: "dev" (filename)
+  Next lines after ## Desc...        → description
 ```
+
+> ⚠️ **Nota:** O parsing atual é simplificado — extrai role do heading `#` e description genérica. Campos como `expertise`, `behavior`, e `directive` existem nos .md mas **não são parseados** pelo Orchestrator. O prompt montado usa apenas: name, role, description, e task.
 
 ---
 
@@ -172,12 +216,24 @@ this.metadata = Map<id, {name, type, task}>
 this.config.maxCount = 16              // máximo 16 terminais simultâneos
 ```
 
-**Fluxo típico:**
+**Fluxo típico (agent genérico):**
 ```
 API POST /api/terminals → TerminalManager.spawn() → node-pty cria PTY
   → terminal.onData → buffer armazena output → SSE broadcast para UI
   → UI renderiza terminal em tempo real
 ```
+
+**Fluxo típico (agent IA):**
+```
+Orchestrator.spawnAgent("dev", task)
+  → createAgentPrompt(definition, task) → monta prompt com persona
+  → TerminalManager.spawnClaudeAgent(prompt)
+  → spawn('claude', ['--print', '--dangerously-skip-permissions', '-p', prompt])
+  → node-pty cria PTY rodando Claude Code CLI
+  → Output vai pro buffer → SSE → UI
+```
+
+> **Importante:** Agents IA são executados via **Claude Code CLI em PTY**, não via Clawdbot Gateway sessions. Cada agent roda como um processo `claude` independente com o prompt montado pela persona + task.
 
 ---
 
@@ -203,9 +259,11 @@ API POST /api/terminals → TerminalManager.spawn() → node-pty cria PTY
 
 ---
 
-### 5. `workflow-engine.js` (591 linhas) — O Diretor
+### 5. `workflow-engine.js` (591 linhas) — O Diretor ⚠️ NÃO INTEGRADO
 
-**O que faz:** Lê workflows YAML e executa step-by-step, coordenando agents na sequência correta.
+> **Status:** Este módulo existe como arquivo completo mas **NÃO é importado pelo server.js**. A execução de workflows é feita pelo **Orchestrator** (`orchestrator.js`) que tem sua própria implementação de `executeWorkflow()`. O WorkflowEngine é infraestrutura preparada para substituir a implementação do Orchestrator quando for integrado.
+
+**O que faz (quando integrado):** Lê workflows YAML e executa step-by-step, coordenando agents na sequência correta.
 
 **Dois formatos de workflow suportados:**
 
@@ -391,9 +449,11 @@ this.events = []                      // log circular (max 1000)
 
 ---
 
-### 11. `ws-bridge.js` (329 linhas) — A Ponte com Clawdbot
+### 11. `ws-bridge.js` (329 linhas) — A Ponte com Clawdbot ⚠️ NÃO INTEGRADO
 
-**O que faz:** Conecta AG Dev ao Clawdbot Gateway via WebSocket para usar agentes IA reais.
+> **Status:** Existe como módulo completo mas **NÃO é importado pelo server.js**. É usado apenas pelo `ClawdbotRuntime` (que também não é integrado). Atualmente, agents são spawnados via Claude Code CLI direto no TerminalManager.
+
+**O que faz (quando integrado):** Conecta AG Dev ao Clawdbot Gateway via WebSocket para usar agentes IA via sessões gerenciadas.
 
 **Protocolo:**
 1. Conecta a `ws://127.0.0.1:18789`
@@ -408,26 +468,30 @@ this.events = []                      // log circular (max 1000)
 - `listSessions()` → sessões ativas
 - Subscriptions para lifecycle events (agent started, finished, etc.)
 
-**Standalone mode:** Se gateway não está disponível, tudo funciona em modo demo (sem IA real).
+**Modo atual:** Sem o bridge, o sistema spawna agents via `claude --print --dangerously-skip-permissions -p <prompt>` em PTY terminals. Funciona, mas sem sessões gerenciadas, streaming de respostas, ou re-conexão automática.
 
 ---
 
-### 12. Runtime Layer (3 arquivos, 504 linhas total)
+### 12. Runtime Layer (4 arquivos, 631 linhas total) ⚠️ NÃO INTEGRADO
 
-**`index.js` — Interface abstrata AgentRuntime:**
+> **Status:** Toda a camada de Runtime existe como código completo e bem estruturado, mas **NÃO é importada pelo server.js**. Atualmente, o fluxo de execução é: `Orchestrator → TerminalManager.spawnClaudeAgent() → PTY com Claude Code CLI`.
+
+**Quando integrado, o fluxo seria:** `Orchestrator → RuntimeFactory → ClawdbotRuntime → WS-Bridge → Clawdbot Gateway → sessões de IA gerenciadas`.
+
+**`index.js` (127 linhas) — Interface abstrata AgentRuntime:**
 Define o contrato que todo runtime deve implementar:
 ```
 connect() → spawnAgent() → sendToAgent() → pauseAgent() → resumeAgent()
 getAgentHistory() → listSessions() → subscribeToAgent() → getStatus()
 ```
 
-**`clawdbot-runtime.js` — Runtime real:**
+**`clawdbot-runtime.js` (131 linhas) — Runtime real:**
 Wraps `ws-bridge.js` na interface AgentRuntime. Delega tudo ao WebSocket bridge.
 
-**`standalone-runtime.js` — Runtime de demo:**
+**`standalone-runtime.js` (176 linhas) — Runtime de demo:**
 Simula agents in-memory. Sem IA real. Útil para desenvolvimento da UI e testes.
 
-**`runtime-factory.js` — Factory + Resilient proxy:**
+**`runtime-factory.js` (197 linhas) — Factory + Resilient proxy:**
 ```
 Se config.runtime = 'standalone' → StandaloneRuntime
 Se config.gateway.url existe → ClawdbotRuntime envolto em ResilientRuntime
@@ -435,6 +499,8 @@ Senão → StandaloneRuntime
 ```
 
 **ResilientRuntime:** Proxy que captura crashes do runtime primário e degrada gracefully para standalone. **Nunca crasha o server.**
+
+**💡 Por que integrar?** O Runtime Layer traria: sessões persistentes, streaming de respostas, pause/resume de agents, histórico de conversas, re-conexão automática, e fallback graceful. Atualmente o PTY direto não oferece nada disso.
 
 ---
 
@@ -612,7 +678,7 @@ A UI não faz polling pesado — recebe events via SSE quando algo muda no serve
 
 ---
 
-## 🌐 API Reference — Os 45 Endpoints
+## 🌐 API Reference — Os 55 Endpoints
 
 ### Core
 | Method | Endpoint | Função |
@@ -664,6 +730,8 @@ A UI não faz polling pesado — recebe events via SSE quando algo muda no serve
 | POST | `/api/ralph/start` | Inicia loop |
 | POST | `/api/ralph/pause` | Pausa loop |
 | POST | `/api/ralph/resume` | Retoma loop |
+| POST | `/api/ralph/stop` | Para loop |
+| GET | `/api/ralph/state` | Estado atual do Ralph |
 
 ### System
 | Method | Endpoint | Função |
@@ -671,7 +739,14 @@ A UI não faz polling pesado — recebe events via SSE quando algo muda no serve
 | POST | `/api/system/pause-all` | Pausa todos agents |
 | POST | `/api/system/resume-all` | Retoma todos agents |
 | POST | `/api/chat` | Envia mensagem ao orquestrador |
-| POST | `/api/context` | Atualiza contexto do projeto |
+
+### Project Context
+| Method | Endpoint | Função |
+|--------|----------|--------|
+| GET | `/api/context` | Lista arquivos de contexto |
+| GET | `/api/context/:filename` | Lê arquivo específico |
+| PUT | `/api/context/:filename` | Atualiza arquivo |
+| POST | `/api/context` | Cria novo arquivo de contexto |
 
 ### Temporal Graph
 | Method | Endpoint | Função |
@@ -713,53 +788,59 @@ A UI não faz polling pesado — recebe events via SSE quando algo muda no serve
 1. Usuário abre UI → App.tsx carrega
    └─ fetch /api/agents → vê 14 agents disponíveis
    └─ fetch /api/squads → vê 5 squads
+   └─ SSE conecta a /api/events para updates real-time
 
 2. Usuário seleciona squad "Full Stack Dev"
    └─ POST /api/squads/fullstack-dev/activate
-   └─ SquadManager ativa squad
-   └─ Orchestrator prepara agents: analyst, architect, dev, qa
+   └─ SquadManager ativa squad (analyst, architect, dev, qa)
 
-3. Usuário clica "Start Workflow" (greenfield-fullstack)
-   └─ POST /api/workflows/greenfield-fullstack/execute
-   └─ WorkflowEngine carrega YAML
-   └─ Normaliza em steps executáveis
+3. Usuário inicia workflow (greenfield-fullstack)
+   └─ POST /api/workflows/greenfield-fullstack/execute {task: "SaaS to-do list"}
+   └─ Orchestrator.executeWorkflow() carrega o YAML
+   └─ Cria workflowExecution com steps sequenciais
 
 4. FASE 0 — Environment Bootstrap:
-   └─ WorkflowEngine: step "devops/environment_bootstrap" → READY
-   └─ Runtime.spawnAgent("devops", {task: "Setup environment"})
-   └─ WS-Bridge → Clawdbot Gateway → cria sessão de IA
-   └─ Agent devops executa: instala deps, cria repo, configura tools
-   └─ AgentGraph: agentSpawned("devops", metadata)
-   └─ MemorySystem: setHot("devops-session", context)
-   └─ SSE broadcast → UI atualiza WorkflowView (step ✅)
+   └─ Orchestrator verifica dependências do step
+   └─ Orchestrator.spawnAgent("devops", contextualizedTask)
+     └─ createAgentPrompt() → monta prompt com persona devops + task
+     └─ TerminalManager.spawnClaudeAgent(prompt) 
+     └─ → PTY executa: claude --print --dangerously-skip-permissions -p <prompt>
+   └─ Agent devops roda no Claude Code CLI: instala deps, cria repo
+   └─ AgentGraph: agentSpawned("devops", metadata) → rastreia no grafo temporal
+   └─ monitorStepAgent() → detecta quando output para (30s inatividade)
+   └─ SSE broadcast → UI mostra terminal do devops em tempo real
 
 5. FASE 1 — Discovery & Planning:
-   └─ Step "analyst/requirements_analysis" → READY
-   └─ Agent analyst analisa requisitos, gera PRD
-   └─ Step "architect/system_design" → READY (depende do analyst)
-   └─ Agent architect cria arquitetura
-   └─ AgentGraph: taskAssigned("analyst", "architect", taskData)
+   └─ Step "analyst" → spawnAgent("analyst", task)
+   └─ Claude Code CLI roda como analyst: analisa requisitos
+   └─ Step "architect" → spawnAgent("architect", task) 
+   └─ Claude Code CLI roda como architect: cria arquitetura
+   └─ AgentGraph: edges temporais registram fluxo analyst→architect
 
-6. FASE 2 — Document Sharding:
-   └─ Documentos são divididos em tasks menores
-   └─ Cada task → user story no formato Ralph
+6. FASE 3 — Development Cycle:
+   └─ spawnAgent("dev", implementation_task)
+   └─ Claude Code CLI implementa código real no projeto
+   └─ spawnAgent("qa", review_task)
+   └─ Claude Code CLI roda como QA: testa e revisa
 
-7. FASE 3 — Development Cycle:
-   └─ RalphLoop recebe PRD gerado
-   └─ Para cada story:
-       └─ TerminalManager.spawn() → PTY para agent dev
-       └─ Agent implementa código
-       └─ Quality checks rodam
-       └─ Se passou → próxima story
-       └─ Se falhou → learning acumulado, retry
-   └─ Agent QA revisa tudo via qa-loop workflow
+7. Alternativa via Ralph Loop:
+   └─ POST /api/ralph/prd {userStories: [...]}
+   └─ POST /api/ralph/start
+   └─ RalphLoop itera automaticamente:
+     └─ Para cada story → _spawnAgent(prompt)
+     └─ → PTY: claude --print -p <prompt>
+     └─ _waitForCompletion() → espera saída ou "TASK_COMPLETE"
+     └─ Se falhou → acumula learning, retry
+     └─ Máx 20 iterações
 
 8. Durante tudo isso:
-   └─ AgentGraph rastreia cada interação temporal
-   └─ MemorySystem persiste aprendizados
+   └─ AgentGraph rastreia cada spawn/stop/interação com timestamps
+   └─ StateManager mantém estado global (agents, workflows, events)
    └─ SSE mantém UI sincronizada em real-time
-   └─ StateManager mantém estado global consistente
+   └─ MemorySystem disponível para persistir context (via API)
 ```
+
+> **Realidade atual:** Cada agent roda como um processo `claude` independente. Não há comunicação direta entre agents — a coordenação é sequencial via workflow steps. Agent A termina → Agent B começa com output do A como contexto.
 
 ---
 
@@ -785,12 +866,15 @@ Usado pelo Orchestrator para gerar documentos de planejamento automaticamente.
 
 ```
 Linhas de código server:     7.259 (15 arquivos JS)
+  ├─ Ativamente usados:      ~3.800 (server.js, orchestrator, terminal-mgr, squad-mgr, 
+  │                                   ralph-loop, agent-graph, temporal-graph, state, memory)
+  └─ Preparados (não integrados): ~1.400 (workflow-engine, ws-bridge, runtimes/*)
 Linhas de código UI:         ~2.600 (React/TypeScript)
 Linhas de SuperSkills:       ~3.000 (31 skills + registry + runner)
 Agent personas:              14 (Markdown)
 Workflows:                   10 (YAML)
 Squads:                      5 (JSON)
-API endpoints:               45
+API endpoints:               55
 Total estimado:              ~15.000+ linhas de código
 ```
 
@@ -798,18 +882,31 @@ Total estimado:              ~15.000+ linhas de código
 
 ## 🔮 Inovações Únicas
 
-1. **Temporal Graph Engine** — Grafo com dimensão temporal. Não só "quem se conecta a quem", mas "quem se conectou a quem, quando, e por quanto tempo". Permite replay temporal de todo o sistema.
+1. **Temporal Graph Engine** ✅ ATIVO — Grafo com dimensão temporal. Não só "quem se conecta a quem", mas "quem se conectou a quem, quando, e por quanto tempo". Integrado no server.js, rastreia spawns reais de agents. Permite replay temporal de todo o sistema.
 
-2. **Memory Folding** — Compressão inteligente de contexto. Quando a memória warm cresce, ela é "dobrada" (folded) mantendo essência e descartando ruído.
+2. **Memory Folding** ✅ ATIVO — Compressão inteligente de contexto. Quando a memória warm cresce, ela é "dobrada" (folded) mantendo essência e descartando ruído. API exposta e funcional.
 
-3. **ResilientRuntime** — O server NUNCA crasha por causa do runtime. Se Clawdbot Gateway cair, degrada transparentemente para standalone. Zero downtime.
+3. **ResilientRuntime** ⚠️ PREPARADO — O conceito é excelente (nunca crasha por causa do runtime, degrada gracefully), mas não está integrado no server.js atual. Quando ativado, será uma camada de proteção poderosa.
 
-4. **Ralph Loop** — Desenvolvimento autônomo com learning acumulativo. Cada falha ensina o próximo attempt. É um proto-AGI de desenvolvimento.
+4. **Ralph Loop** ✅ ATIVO — Desenvolvimento autônomo com learning acumulativo. Cada falha ensina o próximo attempt. Spawna Claude Code CLI via PTY e monitora completion. Funcional via API.
 
-5. **Agent Persona System** — Agents não são genéricos. Cada um tem personalidade, expertise definida, e behavioral rules. O architect pensa diferente do dev que pensa diferente do QA.
+5. **Agent Persona System** ✅ PARCIAL — 14 personas ricas definidas em Markdown (role, expertise, behavior), mas o Orchestrator usa apenas name + role + description no prompt. Os campos expertise e behavior existem nos .md mas não são injetados. Potencial enorme quando o parsing for expandido.
 
-6. **SuperSkills Registry** — Sistema plugável de ferramentas. Qualquer pessoa pode criar uma SuperSkill (manifest.json + run.js) e ela é auto-descoberta.
+6. **SuperSkills Registry** ✅ ATIVO — Sistema plugável de ferramentas. Auto-descoberta de manifest.json + run.js. 31 SuperSkills em 6 categorias. API de list/search/run funcional. Issue conhecida: parâmetros do registry conflitam com execução via API (funciona direto, falha via API).
 
 ---
 
-*Gerado em 2026-02-02 por Claudio — Raio-X completo do AG Dev v2.0*
+## 🔧 Gaps Identificados nesta Auditoria
+
+| Gap | Impacto | Esforço |
+|-----|---------|---------|
+| WorkflowEngine não integrado no server | Orchestrator tem implementação própria mais simples | Médio (2-3 dias) |
+| Runtime Layer não integrado | Sem sessões gerenciadas, sem pause/resume, sem streaming | Alto (3-5 dias) |
+| Agent parsing simplificado | Expertise e behavior das personas ignorados | Baixo (1 dia) |
+| SuperSkills API com bug de parâmetros | Funciona direto, falha via API | Baixo (horas) |
+| Agents não comunicam entre si | Coordenação puramente sequencial | Alto (design decision) |
+| WS-Bridge não conecta ao Gateway | Sem integração com Clawdbot | Médio (2 dias) |
+
+---
+
+*Gerado em 2026-02-02 por Claudio — Raio-X v2 (auditado e corrigido)*
