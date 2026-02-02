@@ -44,7 +44,7 @@ function FileCard({ filename, content, isReadOnly = false, onSave }: FileCardPro
   const hasChanges = editedContent !== content && !isReadOnly
 
   return (
-    <div className="bg-bg-surface border border-bg-border rounded-lg">
+    <div className="glass-card">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-bg-border">
         <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export function ProjectContext() {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+        <div className="glass-card stat-bar-red p-4">
           <div className="flex items-center gap-2 text-red-400">
             <AlertCircle size={16} />
             {error}

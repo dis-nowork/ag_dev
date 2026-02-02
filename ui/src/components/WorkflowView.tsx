@@ -55,7 +55,7 @@ export function WorkflowView() {
   if (!workflowState || !workflowState.active) {
     return (
       <div className="max-w-6xl mx-auto">
-        <div className="bg-bg-surface border border-bg-border rounded-lg p-8">
+        <div className="glass-card p-8">
           <div className="text-center mb-8">
             <div className="text-6xl mb-4">⚡</div>
             <h2 className="text-2xl font-bold text-text-primary mb-3">No Active Workflow</h2>
@@ -66,7 +66,7 @@ export function WorkflowView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div 
               onClick={() => setView('squads')}
-              className="bg-bg-primary border border-bg-border rounded-lg p-4 hover:bg-bg-surface transition-colors cursor-pointer group"
+              className="glass-card p-4 transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-3 mb-2">
                 <div className="text-2xl">🏗️</div>
@@ -79,7 +79,7 @@ export function WorkflowView() {
             
             <div 
               onClick={() => setView('squads')}
-              className="bg-bg-primary border border-bg-border rounded-lg p-4 hover:bg-bg-surface transition-colors cursor-pointer group"
+              className="glass-card p-4 transition-colors cursor-pointer group"
             >
               <div className="flex items-center gap-3 mb-2">
                 <div className="text-2xl">🧠</div>
@@ -200,7 +200,7 @@ export function WorkflowView() {
     return (
       <div className="grid grid-cols-4 gap-4">
         {columns.map((column) => (
-          <div key={column.key} className="bg-bg-primary rounded-lg p-4">
+          <div key={column.key} className="glass-card p-4">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-lg">{column.icon}</span>
               <h3 className="font-semibold text-text-primary">{column.title}</h3>
@@ -213,7 +213,7 @@ export function WorkflowView() {
               {column.steps.map((step) => {
                 const agent = getAgentForStep(step)
                 return (
-                  <div key={step.id} className="bg-bg-surface border border-bg-border rounded-lg p-3">
+                  <div key={step.id} className="glass-card p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-lg">{agent.icon}</span>
                       <div className="flex-1 min-w-0">
@@ -279,7 +279,7 @@ export function WorkflowView() {
           const isLast = index === workflowState.steps.length - 1
           
           return (
-            <div key={step.id} className="flex items-center gap-4 p-3 hover:bg-bg-primary rounded-lg transition-colors">
+            <div key={step.id} className="flex items-center gap-4 p-3 hover:bg-bg-card rounded-lg transition-colors">
               {/* Timeline Line */}
               <div className="flex flex-col items-center">
                 <div className={`w-3 h-3 rounded-full border-2 ${
@@ -339,7 +339,7 @@ export function WorkflowView() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Metrics Cards */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-bg-primary rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-orange">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="text-accent-primary" size={16} />
               <h3 className="font-semibold text-text-primary">Total Time</h3>
@@ -349,7 +349,7 @@ export function WorkflowView() {
             </div>
           </div>
           
-          <div className="bg-bg-primary rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-green">
             <div className="flex items-center gap-2 mb-2">
               <Activity className="text-accent-success" size={16} />
               <h3 className="font-semibold text-text-primary">Completion</h3>
@@ -359,7 +359,7 @@ export function WorkflowView() {
             </div>
           </div>
           
-          <div className="bg-bg-primary rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-blue">
             <div className="flex items-center gap-2 mb-2">
               <Timer className="text-accent-warning" size={16} />
               <h3 className="font-semibold text-text-primary">Avg Step</h3>
@@ -369,7 +369,7 @@ export function WorkflowView() {
             </div>
           </div>
           
-          <div className="bg-bg-primary rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-purple">
             <div className="flex items-center gap-2 mb-2">
               <Users className="text-accent-primary" size={16} />
               <h3 className="font-semibold text-text-primary">Agents</h3>
@@ -442,7 +442,7 @@ export function WorkflowView() {
                   <div className="w-24 text-xs text-text-secondary truncate">
                     {agent.shortName}
                   </div>
-                  <div className="flex-1 bg-bg-primary rounded-full h-6 relative">
+                  <div className="flex-1 bg-bg-card rounded-full h-6 relative">
                     <div 
                       className={`h-full rounded-full transition-all duration-500 ${
                         step.status === 'done' ? 'bg-accent-success' :
@@ -467,7 +467,7 @@ export function WorkflowView() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="bg-bg-surface border border-bg-border rounded-lg p-6">
+      <div className="glass-card p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -514,7 +514,7 @@ export function WorkflowView() {
         <div className="mb-6">
           <div className="w-full bg-bg-primary rounded-full h-3 relative overflow-hidden">
             <div
-              className="bg-accent-primary h-3 rounded-full transition-all duration-500 ease-out"
+              className="bg-gradient-to-r from-accent-primary to-amber-500 h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-text-primary">
@@ -547,10 +547,10 @@ export function WorkflowView() {
         <div className="flex items-center gap-1 mb-6 bg-bg-primary rounded-lg p-1">
           <button
             onClick={() => setViewMode('board')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
+            className={`flex items-center gap-2 text-sm transition-colors ${
               viewMode === 'board' 
-                ? 'bg-accent-primary text-white' 
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'nav-pill-active' 
+                : 'text-text-secondary hover:text-text-primary px-4 py-2 rounded-md'
             }`}
           >
             <Kanban size={14} />
@@ -558,10 +558,10 @@ export function WorkflowView() {
           </button>
           <button
             onClick={() => setViewMode('timeline')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
+            className={`flex items-center gap-2 text-sm transition-colors ${
               viewMode === 'timeline' 
-                ? 'bg-accent-primary text-white' 
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'nav-pill-active' 
+                : 'text-text-secondary hover:text-text-primary px-4 py-2 rounded-md'
             }`}
           >
             <List size={14} />
@@ -569,10 +569,10 @@ export function WorkflowView() {
           </button>
           <button
             onClick={() => setViewMode('stats')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors ${
+            className={`flex items-center gap-2 text-sm transition-colors ${
               viewMode === 'stats' 
-                ? 'bg-accent-primary text-white' 
-                : 'text-text-secondary hover:text-text-primary'
+                ? 'nav-pill-active' 
+                : 'text-text-secondary hover:text-text-primary px-4 py-2 rounded-md'
             }`}
           >
             <BarChart3 size={14} />

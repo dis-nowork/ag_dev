@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -6,10 +7,62 @@
 
 body {
   margin: 0;
-  font-family: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
-  background: #0A0A0B;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #08080A;
   color: #EDEDEF;
+  min-height: 100vh;
 }
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(20,20,24,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+}
+
+.glass-card:hover {
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* Ambient background glow */
+.ambient-glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: 
+    radial-gradient(ellipse at 10% 90%, rgba(139,92,246,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(249,115,22,0.06) 0%, transparent 40%);
+}
+
+/* Stat indicator bars */
+.stat-bar-orange { border-left: 4px solid #F97316; padding-left: 12px; }
+.stat-bar-green { border-left: 4px solid #10B981; padding-left: 12px; }
+.stat-bar-blue { border-left: 4px solid #3B82F6; padding-left: 12px; }
+.stat-bar-red { border-left: 4px solid #EF4444; padding-left: 12px; }
+.stat-bar-purple { border-left: 4px solid #A855F7; padding-left: 12px; }
+
+/* Glow effects */
+.glow-orange { box-shadow: 0 0 20px rgba(249,115,22,0.2); }
+.glow-purple { box-shadow: 0 0 20px rgba(168,85,247,0.2); }
+.glow-success { box-shadow: 0 0 20px rgba(16,185,129,0.2); }
+
+/* Active nav pill */
+.nav-pill-active {
+  background: #F97316;
+  color: #0A0A0B;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
 .xterm { padding: 8px; }
 .xterm-viewport { overflow-y: auto !important; }

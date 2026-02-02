@@ -137,9 +137,13 @@ export function TerminalPane({ terminal, onKill, onMaximize }: Props) {
   const { title, subtitle } = getDisplayInfo()
 
   return (
-    <div className="flex flex-col bg-bg-surface border border-bg-border rounded-lg overflow-hidden h-full min-h-0">
+    <div className="flex flex-col glass-card overflow-hidden h-full min-h-0 font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-bg-border bg-bg-surface/80 shrink-0">
+      <div className={`flex items-center justify-between px-3 py-2 border-b border-bg-border shrink-0 ${
+        terminal.status === 'running' ? 'border-t-2 border-t-accent-success' :
+        terminal.status === 'exited' ? 'border-t-2 border-t-gray-500' :
+        'border-t-2 border-t-accent-error'
+      }`}>
         <div className="flex items-center gap-2">
           <span className="text-sm">{statusDot}</span>
           <div>
@@ -172,7 +176,7 @@ export function TerminalPane({ terminal, onKill, onMaximize }: Props) {
       </div>
 
       {/* Terminal */}
-      <div ref={containerRef} className="flex-1 min-h-0 bg-black" />
+      <div ref={containerRef} className="flex-1 min-h-0 bg-black font-mono" />
 
       {/* Input */}
       {terminal.status === 'running' && (
@@ -183,7 +187,7 @@ export function TerminalPane({ terminal, onKill, onMaximize }: Props) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Send input..."
-            className="flex-1 bg-transparent text-text-primary text-sm outline-none placeholder:text-text-muted"
+            className="flex-1 bg-transparent text-text-primary text-sm outline-none placeholder:text-text-muted font-mono"
           />
         </form>
       )}

@@ -66,8 +66,8 @@ export function NewAgentDialog({ isOpen, onClose, onSubmit }: Props) {
   const squadColor = selectedAgentMeta ? getSquadColor(selectedAgentMeta.squad) : null
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-bg-surface border border-bg-border rounded-xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+      <div className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-text-primary">New Agent</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-bg-surfaceHover text-text-muted">
@@ -117,7 +117,7 @@ export function NewAgentDialog({ isOpen, onClose, onSubmit }: Props) {
               
               {/* Agent info */}
               {selectedAgentMeta && squadColor && (
-                <div className="mt-2 p-3 rounded-lg border border-bg-border bg-bg-primary">
+                <div className="mt-2 p-3 glass-card">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">{selectedAgentMeta.icon}</span>
                     <div>

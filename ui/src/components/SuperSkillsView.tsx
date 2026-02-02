@@ -114,7 +114,7 @@ export function SuperSkillsView() {
   return (
     <div className="flex h-full bg-bg-primary">
       {/* Sidebar */}
-      <div className="w-64 bg-bg-surface border-r border-bg-border flex flex-col">
+      <div className="w-64 glass-card border-r-0 flex flex-col">
         {/* Stats Header */}
         <div className="p-4 border-b border-bg-border">
           <h3 className="text-lg font-bold text-text-primary mb-2">SuperSkills</h3>
@@ -130,10 +130,10 @@ export function SuperSkillsView() {
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
+              className={`w-full flex items-center gap-3 text-sm transition-colors mb-1 ${
                 selectedCategory === category.id
-                  ? 'bg-accent-primary/10 text-accent-primary border border-accent-primary/20'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-surfaceHover'
+                  ? 'nav-pill-active'
+                  : 'text-text-secondary hover:text-text-primary px-3 py-2 rounded-lg hover:bg-bg-surfaceHover'
               }`}
             >
               <span className="text-base">{category.icon}</span>
@@ -147,7 +147,7 @@ export function SuperSkillsView() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Search Bar */}
-        <div className="p-4 border-b border-bg-border bg-bg-surface">
+        <div className="p-4 border-b border-bg-border glass-card rounded-none">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted" size={16} />
             <input
@@ -166,7 +166,7 @@ export function SuperSkillsView() {
             {filteredSuperskills.map(skill => (
               <div
                 key={skill.name}
-                className="bg-bg-surface border border-bg-border rounded-lg p-4 hover:border-accent-primary/50 transition-colors"
+                className="glass-card p-4 hover:border-accent-primary/50 transition-colors"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ export function SuperSkillsView() {
 
       {/* Execution Panel */}
       {executionPanelOpen && (
-        <div className="w-96 bg-bg-surface border-l border-bg-border flex flex-col">
+        <div className="w-96 glass-card border-l-0 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-bg-border">
             <div className="flex items-center gap-2">

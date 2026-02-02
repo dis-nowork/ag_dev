@@ -50,7 +50,7 @@ export function SquadSelector({ onSquadSelect }: Props) {
             return (
               <div
                 key={squad.id}
-                className="group bg-bg-surface border border-bg-border rounded-lg p-6 cursor-pointer hover:scale-[1.02] transition-all duration-200"
+                className="group glass-card p-6 cursor-pointer hover:scale-[1.02] transition-all duration-200"
                 style={{ 
                   animationDelay: `${index * 50}ms`,
                   borderColor: squadColors.main + '30'
@@ -90,7 +90,7 @@ export function SquadSelector({ onSquadSelect }: Props) {
 
         <div className="text-center">
           <button
-            className="inline-flex items-center gap-2 px-6 py-3 bg-bg-surface border border-bg-border rounded-lg text-text-secondary hover:text-text-primary hover:border-accent-primary/50 transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 glass-card text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => {/* TODO: Custom squad creation */}}
           >
             <Plus size={16} />
@@ -101,8 +101,8 @@ export function SquadSelector({ onSquadSelect }: Props) {
 
       {/* Task Modal */}
       {isModalOpen && selectedSquad && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-bg-surface border border-bg-border rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="glass-card p-6 max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">{selectedSquad.icon}</span>
               <div>

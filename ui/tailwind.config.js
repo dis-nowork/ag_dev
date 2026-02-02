@@ -4,13 +4,16 @@ export default {
     extend: {
       colors: {
         bg: {
-          primary: '#0A0A0B',
+          primary: '#08080A',
           surface: '#141416',
           surfaceHover: '#1C1C1F',
           surfaceActive: '#222226',
           border: '#2A2A2E',
           borderLight: '#35353A',
           terminal: '#000000',
+          card: 'rgba(20,20,24,0.7)',
+          cardHover: 'rgba(28,28,35,0.8)',
+          glow: 'rgba(139,92,246,0.15)',
         },
         text: {
           primary: '#EDEDEF',
@@ -33,7 +36,7 @@ export default {
           paused: '#F59E0B',
         },
         accent: {
-          primary: '#3B82F6',
+          primary: '#F97316',
           secondary: '#A855F7',
           success: '#10B981',
           warning: '#EAB308',

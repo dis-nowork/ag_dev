@@ -241,11 +241,12 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex bg-bg-primary overflow-hidden">
+    <div className="h-screen flex bg-bg-primary overflow-hidden relative">
+      <div className="ambient-glow" />
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-bg-border bg-bg-surface shrink-0">
+        <header className="glass-card flex items-center justify-between px-4 py-2.5 border-b-0 mx-4 mt-4 mb-0 shrink-0 relative z-10">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Zap size={18} className="text-accent-primary" />
@@ -258,10 +259,10 @@ export default function App() {
                 <button
                   key={id}
                   onClick={() => setView(id as any)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-all ${
                     currentView === id
-                      ? 'bg-accent-primary/10 text-accent-primary border border-accent-primary/20'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-surfaceHover'
+                      ? 'nav-pill-active'
+                      : 'text-text-secondary hover:text-text-primary px-3 py-1.5 rounded-lg hover:bg-bg-surfaceHover'
                   }`}
                 >
                   <Icon size={13} />
@@ -303,17 +304,26 @@ export default function App() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto p-4 min-h-0">
+        <main className="flex-1 overflow-auto p-4 min-h-0 relative z-10">
           {renderMainContent()}
         </main>
 
         {/* Status bar */}
-        <footer className="flex items-center justify-between px-4 py-1.5 border-t border-bg-border bg-bg-surface text-xs text-text-muted shrink-0">
+        <footer className="glass-card flex items-center justify-between px-4 py-1.5 mx-4 mb-4 text-xs text-text-muted shrink-0 relative z-10">
           <span>AG Dev v2.0 • Mission Control</span>
-          <span>
-            Status: {activeCount} agents | Squad: {activeSquadName}
-            {workflowState?.active && ` | Workflow: ${workflowState.name}`}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="stat-bar-orange">
+              {activeCount} agents running
+            </span>
+            <span className="stat-bar-purple">
+              Squad: {activeSquadName}
+            </span>
+            {workflowState?.active && (
+              <span className="stat-bar-blue">
+                Workflow: {workflowState.name}
+              </span>
+            )}
+          </div>
         </footer>
       </div>
 

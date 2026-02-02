@@ -101,7 +101,7 @@ export function OrchestratorChat() {
   }
 
   return (
-    <div className="w-80 bg-bg-surface border-l border-bg-border flex flex-col h-full">
+    <div className="w-80 glass-card border-l-0 flex flex-col h-full relative z-10">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-bg-border">
         <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export function OrchestratorChat() {
                 className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap ${
                   message.role === 'user'
                     ? 'bg-accent-primary text-bg-primary ml-auto'
-                    : 'bg-bg-primary text-text-primary'
+                    : 'bg-bg-card text-text-primary'
                 }`}
               >
                 {message.text}
@@ -158,7 +158,7 @@ export function OrchestratorChat() {
             <div className="w-8 h-8 rounded-full bg-accent-primary/20 flex items-center justify-center shrink-0">
               <span className="text-sm">🤖</span>
             </div>
-            <div className="bg-bg-primary px-3 py-2 rounded-lg">
+            <div className="bg-bg-card px-3 py-2 rounded-lg">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-text-muted rounded-full animate-pulse" />
                 <div className="w-2 h-2 bg-text-muted rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />

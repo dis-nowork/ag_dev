@@ -129,7 +129,7 @@ export function RalphView() {
 
       {!ralph.prd ? (
         // No PRD loaded - Show input form
-        <div className="bg-bg-surface border border-bg-border rounded-lg p-6">
+        <div className="glass-card p-6">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Describe your project or paste a PRD:</h2>
           
           <div className="space-y-4">
@@ -169,13 +169,13 @@ export function RalphView() {
         // PRD loaded - Show main view
         <div className="space-y-6">
           {/* Progress Section */}
-          <div className="bg-bg-surface border border-bg-border rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-orange">
             <h3 className="text-lg font-semibold text-text-primary mb-3">Progress</h3>
             
             <div className="mb-4">
               <div className="w-full bg-bg-primary rounded-full h-3 mb-2">
                 <div
-                  className="h-3 rounded-full bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] transition-all duration-500"
+                  className="h-3 rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary transition-all duration-500"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -215,12 +215,12 @@ export function RalphView() {
           </div>
 
           {/* Stories Section */}
-          <div className="bg-bg-surface border border-bg-border rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-blue">
             <h3 className="text-lg font-semibold text-text-primary mb-3">Stories</h3>
             
             <div className="space-y-2">
               {ralph.prd.userStories.map((story) => (
-                <div key={story.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-bg-primary/50 transition-colors">
+                <div key={story.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-bg-card transition-colors">
                   <span className="text-lg">{getStoryIcon(story)}</span>
                   <div className="flex-1">
                     <span className={`font-medium ${getStoryColor(story)}`}>
@@ -241,7 +241,7 @@ export function RalphView() {
           </div>
 
           {/* Learnings Section */}
-          <div className="bg-bg-surface border border-bg-border rounded-lg p-4">
+          <div className="glass-card p-4 stat-bar-purple">
             <h3 className="text-lg font-semibold text-text-primary mb-3">Learnings</h3>
             
             <div 
