@@ -374,48 +374,93 @@ class Orchestrator {
    */
   async executeWorkflowStep(workflowId) {
     const workflow = this.activeWorkflows.get(workflowId);
-    if (!workflow || workflow.status !== 'running') {
-      return;
-    }
+    if (!workflow || workflow.status !== 'running') return;
 
     const step = workflow.steps[workflow.currentStep];
     if (!step) {
-      // Workflow completed
+      // All steps done
       workflow.status = 'completed';
       workflow.endTime = Date.now();
       this.stateManager.updateWorkflow(workflowId, workflow);
+      this.emitWorkflowEvent('workflow_completed', workflow);
       return;
     }
 
+    // Mark step as working
+    step.status = 'working';
+    step.startTime = Date.now();
+    this.stateManager.updateWorkflow(workflowId, workflow);
+    this.emitWorkflowEvent('step_started', { workflowId, step: workflow.currentStep, agent: step.agent });
+
     try {
-      // Execute step based on type
-      if (step.type === 'agent') {
-        const agent = await this.spawnAgent(step.agent, step.task || '');
-        workflow.agents.push(agent.id);
+      let terminal;
+      if (step.type === 'agent' || step.agent) {
+        terminal = await this.spawnAgent(step.agent, step.task || '');
+        workflow.agents.push(terminal.id);
+        step.terminalId = terminal.id;
       } else if (step.type === 'command') {
-        const command = await this.spawnCustomCommand(
-          step.name || step.command,
-          step.command,
-          step.args || []
-        );
-        workflow.agents.push(command.id);
+        terminal = await this.spawnCustomCommand(step.name || step.command, step.command, step.args || []);
+        workflow.agents.push(terminal.id);
+        step.terminalId = terminal.id;
       }
 
-      // Move to next step
-      workflow.currentStep++;
-      this.stateManager.updateWorkflow(workflowId, workflow);
+      if (terminal && terminal.id) {
+        // Wait for terminal to exit before advancing
+        const stepTimeout = setTimeout(() => {
+          // Safety timeout: advance after 5 minutes even if agent hasn't exited
+          this._advanceWorkflowStep(workflowId, 'timeout');
+        }, 5 * 60 * 1000);
 
-      // Continue with next step after delay
-      setTimeout(() => {
-        this.executeWorkflowStep(workflowId);
-      }, step.delay || 1000);
+        const onExit = (data) => {
+          if (data && data.id === terminal.id) {
+            clearTimeout(stepTimeout);
+            this.terminalManager.removeListener('exit', onExit);
+            this._advanceWorkflowStep(workflowId, data.exitCode === 0 ? 'done' : 'error');
+          }
+        };
+        
+        this.terminalManager.on('exit', onExit);
+      } else {
+        // No terminal to wait for, advance immediately
+        this._advanceWorkflowStep(workflowId, 'done');
+      }
 
     } catch (error) {
-      workflow.status = 'error';
-      workflow.error = error.message;
-      workflow.endTime = Date.now();
-      this.stateManager.updateWorkflow(workflowId, workflow);
+      step.status = 'error';
+      step.error = error.message;
+      console.error(`Workflow step error:`, error);
+      // Continue to next step even on error
+      this._advanceWorkflowStep(workflowId, 'error');
     }
+  }
+
+  /**
+   * Advance to next workflow step
+   */
+  _advanceWorkflowStep(workflowId, status) {
+    const workflow = this.activeWorkflows.get(workflowId);
+    if (!workflow || workflow.status !== 'running') return;
+
+    const step = workflow.steps[workflow.currentStep];
+    if (step) {
+      step.status = status;
+      step.endTime = Date.now();
+      step.duration = step.endTime - (step.startTime || step.endTime);
+    }
+    
+    this.emitWorkflowEvent('step_completed', { 
+      workflowId, 
+      step: workflow.currentStep, 
+      agent: step?.agent,
+      status,
+      duration: step?.duration 
+    });
+
+    workflow.currentStep++;
+    this.stateManager.updateWorkflow(workflowId, workflow);
+
+    // Execute next step
+    this.executeWorkflowStep(workflowId);
   }
 
   /**

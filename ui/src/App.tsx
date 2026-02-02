@@ -89,14 +89,28 @@ export default function App() {
       setActiveSquad(squad.id)
       
       // Create workflow state from server response
-      if (result.agents && result.agents.length > 0) {
+      if (result.workflow && result.workflow.steps) {
+        setWorkflowState({
+          active: true,
+          name: result.workflow.name || `${squad.name} Workflow`,
+          currentStep: result.workflow.steps[0]?.agent || '',
+          steps: result.workflow.steps.map((step: any, i: number) => ({
+            id: `step-${i}`,
+            agent: step.agent || step.name,
+            task: step.task || '',
+            status: i === 0 ? 'working' : 'waiting'
+          }))
+        })
+      } else if (result.agents && result.agents.length > 0) {
+        // Fallback to agent-based workflow if no workflow was started
         setWorkflowState({
           active: true,
           name: `${squad.name} Workflow`,
           currentStep: result.agents[0]?.name || squad.agents[0],
-          steps: (result.agents || squad.agents.map((a: string) => ({ name: a }))).map((agent: any, i: number) => ({
+          steps: result.agents.map((agent: any, i: number) => ({
             id: `step-${i}`,
             agent: agent.name || agent,
+            task: '',
             status: i === 0 ? 'working' : 'waiting'
           }))
         })

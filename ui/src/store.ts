@@ -41,7 +41,15 @@ export interface WorkflowState {
   active: boolean
   name: string
   currentStep: string
-  steps: Array<{ id: string; agent: string; status: string }>
+  steps: Array<{ 
+    id: string; 
+    agent: string; 
+    status: string;
+    task?: string;
+    startTime?: number;
+    endTime?: number;
+    duration?: number;
+  }>
 }
 
 // Ralph Loop state

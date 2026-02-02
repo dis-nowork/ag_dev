@@ -1,9 +1,18 @@
-import { useEffect } from 'react'
-import { Pause, Square, ArrowRight } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Pause, Square, ArrowRight, Clock } from 'lucide-react'
 import { useStore } from '../store'
 
 export function WorkflowView() {
   const { workflowState, setWorkflowState } = useStore()
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  // Update current time every second for working steps
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Fetch active workflow on mount
   useEffect(() => {
@@ -18,7 +27,11 @@ export function WorkflowView() {
             steps: data.steps.map((s: any, i: number) => ({
               id: `step-${i}`,
               agent: s.agent || s.name,
-              status: i < data.currentStep ? 'done' : i === data.currentStep ? 'working' : 'waiting'
+              task: s.task || '',
+              status: i < data.currentStep ? 'done' : i === data.currentStep ? 'working' : 'waiting',
+              startTime: s.startTime,
+              endTime: s.endTime,
+              duration: s.duration
             }))
           })
         }
@@ -83,6 +96,29 @@ export function WorkflowView() {
     }
   }
 
+  const formatDuration = (ms: number) => {
+    const seconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m ${seconds % 60}s`
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`
+    } else {
+      return `${seconds}s`
+    }
+  }
+
+  const getStepTiming = (step: any) => {
+    if (step.status === 'working' && step.startTime) {
+      return formatDuration(currentTime - step.startTime)
+    } else if (step.status === 'done' && step.duration) {
+      return formatDuration(step.duration)
+    }
+    return null
+  }
+
   // Calculate progress
   const totalSteps = workflowState.steps.length
   const doneSteps = workflowState.steps.filter(s => s.status === 'done').length
@@ -125,16 +161,27 @@ export function WorkflowView() {
             {workflowState.steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 {/* Step Node */}
-                <div className={`flex flex-col items-center min-w-[120px] px-4 py-3 rounded-lg border ${getStepBgColor(step.status)}`}>
-                  <div className="text-2xl mb-2 ${step.status === 'working' ? 'animate-pulse' : ''}">
+                <div className={`flex flex-col items-center min-w-[140px] px-4 py-3 rounded-lg border ${getStepBgColor(step.status)}`}>
+                  <div className={`text-2xl mb-2 ${step.status === 'working' ? 'animate-pulse' : ''}`}>
                     {getStepIcon(step.status)}
                   </div>
                   <div className="text-sm font-medium text-text-primary text-center mb-1">
                     {step.agent}
                   </div>
-                  <div className={`text-xs capitalize ${getStepColor(step.status)}`}>
+                  {step.task && (
+                    <div className="text-xs text-text-muted text-center mb-1 line-clamp-2 max-w-[120px]">
+                      {step.task}
+                    </div>
+                  )}
+                  <div className={`text-xs capitalize ${getStepColor(step.status)} mb-1`}>
                     {step.status}
                   </div>
+                  {getStepTiming(step) && (
+                    <div className="flex items-center gap-1 text-xs text-text-muted">
+                      <Clock size={10} />
+                      {getStepTiming(step)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Arrow (except for last step) */}
