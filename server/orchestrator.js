@@ -82,32 +82,95 @@ class Orchestrator {
   parseAgentDefinition(content, name) {
     const definition = {
       name,
-      description: '',
+      agentName: '', // Agent name from heading
+      agentId: '', // Agent ID from heading
       role: '',
-      skills: [],
-      commands: [],
-      personality: '',
-      examples: []
+      expertise: [],
+      behavior: [],
+      directive: '',
+      description: '', // Legacy field for compatibility
+      skills: [], // Legacy field for compatibility
+      commands: [], // Legacy field for compatibility
+      personality: '', // Legacy field for compatibility
+      examples: [] // Legacy field for compatibility
     };
 
-    // Extract title/description from first lines
     const lines = content.split('\n');
-    for (const line of lines) {
+    let currentSection = null;
+    let currentItems = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       const trimmed = line.trim();
-      if (trimmed.startsWith('# ')) {
-        definition.role = trimmed.substring(2);
-      } else if (trimmed.startsWith('## ') && trimmed.toLowerCase().includes('desc')) {
-        // Next line usually contains description
-        const nextIndex = lines.indexOf(line) + 1;
-        if (nextIndex < lines.length) {
-          definition.description = lines[nextIndex].trim();
+
+      // Parse main heading: # Agent: Name (id)
+      if (trimmed.startsWith('# Agent:')) {
+        const match = trimmed.match(/^# Agent:\s*(.+?)\s*\((.+?)\)/);
+        if (match) {
+          definition.agentName = match[1].trim();
+          definition.agentId = match[2].trim();
+        }
+        continue;
+      }
+
+      // Parse section headings
+      if (trimmed.startsWith('## ')) {
+        // Save previous section items
+        if (currentSection && currentItems.length > 0) {
+          definition[currentSection] = currentItems;
+          currentItems = [];
+        }
+
+        const sectionName = trimmed.substring(3).trim().toLowerCase();
+        if (sectionName === 'role') {
+          currentSection = 'role';
+        } else if (sectionName === 'expertise') {
+          currentSection = 'expertise';
+        } else if (sectionName === 'behavior') {
+          currentSection = 'behavior';
+        } else if (sectionName === 'current directive') {
+          currentSection = 'directive';
+        } else {
+          currentSection = null;
+        }
+        continue;
+      }
+
+      // Parse section content
+      if (currentSection) {
+        if (currentSection === 'role') {
+          // Role is the paragraph text after the ## Role heading
+          if (trimmed && !trimmed.startsWith('-') && !trimmed.startsWith('*')) {
+            definition.role = trimmed;
+            currentSection = null; // Role is single paragraph
+          }
+        } else if (currentSection === 'expertise' || currentSection === 'behavior') {
+          // Extract bullet items
+          if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+            const item = trimmed.substring(1).trim();
+            currentItems.push(item);
+          }
+        } else if (currentSection === 'directive') {
+          // Extract directive template
+          if (trimmed && !trimmed.startsWith('<!--')) {
+            definition.directive = trimmed;
+            currentSection = null; // Directive is single line template
+          }
         }
       }
     }
 
-    // Default description if not found
-    if (!definition.description) {
-      definition.description = `${name} agent for development tasks`;
+    // Save final section items
+    if (currentSection && currentItems.length > 0) {
+      definition[currentSection] = currentItems;
+    }
+
+    // Set legacy fields for compatibility
+    definition.description = definition.role || `${name} agent for development tasks`;
+
+    // Use agent name from file if not found in content
+    if (!definition.agentName) {
+      definition.agentName = name;
     }
 
     return definition;
@@ -181,19 +244,39 @@ class Orchestrator {
    * Create prompt for agent based on definition and task
    */
   createAgentPrompt(definition, task) {
-    let prompt = `You are ${definition.name}, ${definition.role}.
+    const agentName = definition.agentName || definition.name;
+    const role = definition.role || definition.description;
 
-${definition.description}
+    let prompt = `You are ${agentName}, ${role}.`;
 
-Your current task: ${task}
+    // Add expertise if available
+    if (definition.expertise && definition.expertise.length > 0) {
+      prompt += `\n\nExpertise:`;
+      for (const item of definition.expertise) {
+        prompt += `\n- ${item}`;
+      }
+    }
 
-Guidelines:
-- Stay focused on your role as ${definition.name}
+    // Add behavioral rules if available
+    if (definition.behavior && definition.behavior.length > 0) {
+      prompt += `\n\nBehavioral rules:`;
+      for (const item of definition.behavior) {
+        prompt += `\n- ${item}`;
+      }
+    }
+
+    prompt += `\n\nYour current task: ${task}`;
+
+    // Add basic guidelines if no behavior rules were provided
+    if (!definition.behavior || definition.behavior.length === 0) {
+      prompt += `\n\nGuidelines:
+- Stay focused on your role as ${agentName}
 - Provide clear, actionable output
 - If you need to run commands, explain what you're doing
-- Ask for clarification if the task is unclear
+- Ask for clarification if the task is unclear`;
+    }
 
-Begin working on the task now.`;
+    prompt += `\n\nBegin working on the task now.`;
 
     return prompt;
   }

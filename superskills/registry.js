@@ -308,16 +308,12 @@ class SuperSkillRegistry {
       const cmd = parts[0];
       const args = parts.slice(1);
 
-      // Add input handling - prefer --input flag, fallback to stdin
+      // Input handling: SuperSkills expect clean arguments
       const inputJson = JSON.stringify(input);
-      let useStdin = true;
       
-      // Check if command already has --input flag
-      if (!args.includes('--input')) {
-        args.push('--input', '-'); // Use stdin for input
-      } else {
-        useStdin = false; // Command handles input itself
-      }
+      // Don't add any CLI arguments - SuperSkills handle stdin input natively
+      // They expect either no args (stdin) or --input <filename> (file input)
+      // The registry always uses stdin, so pass no additional arguments
 
       const child = spawn(cmd, args, {
         cwd,
@@ -335,8 +331,8 @@ class SuperSkillRegistry {
         stderr += data.toString();
       });
 
-      // Send input via stdin if needed
-      if (useStdin && child.stdin) {
+      // Always send input via stdin (SuperSkills are designed for this)
+      if (child.stdin) {
         child.stdin.write(inputJson);
         child.stdin.end();
       }

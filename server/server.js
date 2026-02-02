@@ -49,6 +49,37 @@ const ralphLoop = new RalphLoop(terminalManager, {
 // Initialize SuperSkill Registry
 const superskillRegistry = new SuperSkillRegistry(path.join(__dirname, '..', 'superskills'));
 
+// Initialize Runtime Layer
+const { createRuntime } = require('./runtimes/runtime-factory');
+
+// Runtime event callbacks
+const runtimeCallbacks = {
+  onEvent: (event) => {
+    broadcast('runtime_event', event);
+  },
+  onAgentReply: (sessionKey, reply) => {
+    broadcast('agent_reply', { sessionKey, reply });
+  },
+  onLifecycleEvent: (event) => {
+    broadcast('lifecycle_event', event);
+  }
+};
+
+// Create and connect runtime
+const runtime = createRuntime(config, runtimeCallbacks);
+runtime.connect().then(connected => {
+  if (connected) {
+    console.log('  ✅ Runtime connected successfully');
+  } else {
+    console.log('  ℹ Runtime running in standalone mode');
+  }
+}).catch(error => {
+  console.log(`  ⚠ Runtime connection failed: ${error.message}`);
+});
+
+// Export runtime for other modules
+module.exports.runtime = runtime;
+
 // Initialize Agent Graph for temporal tracking
 const agentGraph = new AgentGraph(path.join(__dirname, '../data/graph'));
 agentGraph.autoSave(30000); // Save every 30 seconds
@@ -1187,6 +1218,26 @@ app.post('/api/superskills/:name/run', async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════
+// RUNTIME API
+// ═══════════════════════════════════
+
+/**
+ * Get runtime status
+ */
+app.get('/api/runtime/status', (req, res) => {
+  try {
+    const status = runtime.getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ 
+      error: error.message,
+      connected: false,
+      name: 'error' 
+    });
   }
 });
 

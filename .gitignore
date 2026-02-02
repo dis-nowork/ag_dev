@@ -4,4 +4,5 @@ ui-dist/
 data/graph/*.json
 /tmp/
 superskills/*/output/
+server/state.json
 .DS_Store
