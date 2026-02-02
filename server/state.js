@@ -86,6 +86,20 @@ class StateManager {
   }
 
   /**
+   * Get workflow by id
+   */
+  getWorkflow(id) {
+    return this.workflows.get(id);
+  }
+
+  /**
+   * Get system state (alias for system property)
+   */
+  getSystemState() {
+    return { ...this.system };
+  }
+
+  /**
    * Remove workflow
    */
   removeWorkflow(id) {

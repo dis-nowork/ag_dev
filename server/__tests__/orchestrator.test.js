@@ -269,6 +269,21 @@ steps:
     });
 
     it('should start workflow execution', async () => {
+      // Add a mock agent definition that the workflow step needs
+      const mockDefinition = {
+        name: 'test-agent',
+        agentName: 'Test Agent',
+        role: 'Testing agent',
+        expertise: ['Testing'],
+        behavior: ['Be thorough']
+      };
+      orchestrator.agentDefinitions.set('test-agent', mockDefinition);
+
+      mockTerminalManager.spawnClaudeAgent.mockReturnValue({
+        id: 'terminal-wf-1',
+        startTime: Date.now()
+      });
+
       // Add a mock workflow
       const mockWorkflow = {
         name: 'test-workflow',
@@ -322,10 +337,10 @@ steps:
 
     beforeEach(() => {
       mockRuntime = {
-        isConnected: jest.fn().mockReturnValue(true),
+        connected: true,
         spawnAgent: jest.fn().mockResolvedValue({
-          id: 'runtime-agent-1',
-          startTime: Date.now()
+          ok: true,
+          sessionKey: 'runtime-session-1'
         })
       };
 
@@ -345,10 +360,12 @@ steps:
 
       expect(mockRuntime.spawnAgent).toHaveBeenCalled();
       expect(mockTerminalManager.spawnClaudeAgent).not.toHaveBeenCalled();
+      expect(terminal.id).toBe('runtime-session-1');
+      expect(terminal._runtimeSession).toBe(true);
     });
 
     it('should fallback to PTY when runtime not connected', async () => {
-      mockRuntime.isConnected.mockReturnValue(false);
+      mockRuntime.connected = false;
       mockTerminalManager.spawnClaudeAgent.mockReturnValue({
         id: 'pty-agent-1',
         startTime: Date.now()

@@ -128,6 +128,11 @@ if (fs.existsSync(uiDistPath)) {
   app.use(express.static(uiDistPath));
 }
 
+// --- 404 catch-all (JSON, not HTML) ---
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found', path: req.originalUrl });
+});
+
 // --- Global error handling middleware (must be last) ---
 const { errorHandler } = require('./middleware/error-handler');
 app.use(errorHandler);

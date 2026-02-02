@@ -559,7 +559,7 @@ class Orchestrator {
       });
 
       try {
-        const agentInfo = await this.executeWorkflowStep(step, execution.currentStep);
+        const agentInfo = await this.executeSingleWorkflowStep(step, execution.currentStep);
         
         if (agentInfo) {
           execution.activeAgents.set(execution.currentStep, agentInfo);
@@ -593,7 +593,7 @@ class Orchestrator {
   /**
    * Execute a single workflow step
    */
-  async executeWorkflowStep(step, stepIndex) {
+  async executeSingleWorkflowStep(step, stepIndex) {
     const contextualizedTask = this.contextualizeStepTask(step, this.workflowExecution.task);
 
     if (step.type === 'agent' || step.agent) {
