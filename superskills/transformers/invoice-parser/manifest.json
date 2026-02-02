@@ -1,0 +1,66 @@
+{
+  "name": "invoice-parser",
+  "version": "1.0.0",
+  "category": "transformer",
+  "description": "Extracts structured invoice data from PDF or image files using text extraction and pattern matching. Identifies vendor, date, total, currency, line items, and invoice number using common invoice formats.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string",
+          "description": "Path to PDF or image file"
+        },
+        "extractText": {
+          "type": "boolean",
+          "description": "Whether to attempt text extraction",
+          "default": true
+        },
+        "fallbackToRaw": {
+          "type": "boolean",
+          "description": "Whether to return raw text if parsing fails",
+          "default": true
+        }
+      },
+      "required": ["filePath"]
+    },
+    "required": ["filePath"],
+    "example": {
+      "filePath": "/path/to/invoice.pdf"
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "vendor": { "type": "string" },
+        "date": { "type": "string" },
+        "total": { "type": "number" },
+        "currency": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "quantity": { "type": "number" },
+              "unitPrice": { "type": "number" },
+              "total": { "type": "number" }
+            }
+          }
+        },
+        "invoiceNumber": { "type": "string" },
+        "confidence": { "type": "number" },
+        "rawText": { "type": "string" },
+        "success": { "type": "boolean" }
+      }
+    }
+  },
+  "tokenSavings": "Saves 300-1500 tokens by extracting structured data instead of processing raw invoice content",
+  "tags": ["invoice", "pdf", "ocr", "text-extraction", "business"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 90
+}

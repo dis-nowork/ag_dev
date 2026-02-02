@@ -1,0 +1,8 @@
+{
+  "id": "frontend-ui",
+  "name": "Frontend & UI",
+  "description": "Design, implementation, and testing of user interfaces",
+  "icon": "🎨",
+  "agents": ["ux-design-expert", "dev", "qa"],
+  "defaultWorkflow": "greenfield-ui"
+}

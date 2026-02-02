@@ -1,15 +1,29 @@
 {
   "name": "ag-dev",
-  "version": "1.0.0",
-  "description": "AG Dev — Multi-Agent Command Center for Clawdbot/OpenClaw",
-  "main": "index.ts",
-  "type": "module",
+  "version": "2.0.0",
+  "description": "Multi-Agent Development Orchestration Platform",
+  "main": "server/server.js",
   "scripts": {
-    "install": "bash scripts/install.sh",
-    "dev": "node server/server.js",
-    "build": "cd ui && npm run build && cp -r dist ../ui-dist",
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "build:ui": "cd ui && npx vite build --outDir ../ui-dist",
+    "build": "npm run build:ui",
+    "superskills": "node superskills/runner.js",
+    "superskills:list": "node superskills/runner.js list",
+    "superskills:stats": "node superskills/runner.js stats",
+    "docker:build": "docker build -t ag-dev .",
+    "docker:run": "docker-compose up -d",
+    "install-all": "npm install && cd ui && npm install"
   },
-  "keywords": ["clawdbot", "openclaw", "multi-agent", "command-center", "ai"],
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ws": "^8.14.2",
+    "node-pty": "^1.0.0",
+    "js-yaml": "^4.1.0",
+    "uuid": "^9.0.1"
+  },
+  "keywords": ["multi-agent", "development", "orchestration", "ai"],
+  "author": "AG Dev Team",
   "license": "MIT"
 }

@@ -1,0 +1,51 @@
+{
+  "name": "readme-gen",
+  "version": "1.0.0",
+  "category": "generator",
+  "description": "Generates comprehensive README.md files by analyzing project structure, package.json, Dockerfile, and source code. Auto-detects stack, scripts, license, and generates appropriate sections.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "projectPath": {
+          "type": "string",
+          "description": "Path to project directory"
+        },
+        "name": {
+          "type": "string",
+          "description": "Project name (optional, auto-detected from package.json)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description (optional, auto-detected)"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["installation", "usage", "api", "development", "testing", "deployment", "contributing", "license"]
+          },
+          "description": "Sections to include in README"
+        }
+      },
+      "required": ["projectPath"]
+    },
+    "required": ["projectPath"],
+    "example": {
+      "projectPath": "/path/to/project",
+      "name": "My Project",
+      "description": "A great project",
+      "sections": ["installation", "usage", "development"]
+    }
+  },
+  "output": {
+    "type": "text",
+    "format": "README.md content as markdown string"
+  },
+  "tokenSavings": "Saves 300-1000 tokens by generating README content instead of manually describing project structure",
+  "tags": ["documentation", "readme", "markdown", "project-structure"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 30
+}

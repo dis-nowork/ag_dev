@@ -1,0 +1,76 @@
+{
+  "name": "api-scaffold",
+  "version": "1.0.0",
+  "category": "generator",
+  "description": "Generates Express-style REST API scaffolding including routes, controllers, validators, and basic tests from entity definitions.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string", "enum": ["string", "number", "boolean", "date", "email", "uuid"] },
+                    "constraints": {
+                      "type": "object",
+                      "properties": {
+                        "required": { "type": "boolean" },
+                        "unique": { "type": "boolean" },
+                        "minLength": { "type": "number" },
+                        "maxLength": { "type": "number" },
+                        "min": { "type": "number" },
+                        "max": { "type": "number" }
+                      }
+                    }
+                  },
+                  "required": ["name", "type"]
+                }
+              }
+            },
+            "required": ["name", "fields"]
+          }
+        }
+      },
+      "required": ["entities"]
+    },
+    "required": ["entities"],
+    "example": {
+      "entities": [
+        {
+          "name": "User",
+          "fields": [
+            {
+              "name": "email",
+              "type": "email",
+              "constraints": { "required": true, "unique": true }
+            },
+            {
+              "name": "name",
+              "type": "string",
+              "constraints": { "required": true, "minLength": 2, "maxLength": 50 }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "output": {
+    "type": "file",
+    "format": "Multiple files: routes/, controllers/, validators/, tests/"
+  },
+  "tokenSavings": "Saves 500-2000 tokens per entity by generating boilerplate code instead of describing it",
+  "tags": ["express", "api", "rest", "scaffold", "routes", "controllers"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 30
+}

@@ -10,7 +10,6 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 class ClawdbotBridge {
   constructor(options = {}) {
@@ -98,14 +97,13 @@ class ClawdbotBridge {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'gateway-client',
-          displayName: 'AG Dev',
+          id: 'ag-dev',
           version: '1.0.0',
           platform: 'node',
-          mode: 'backend'
+          mode: 'operator'
         },
         role: 'operator',
-        scopes: ['operator.read', 'operator.write', 'operator.admin'],
+        scopes: ['operator.read', 'operator.write'],
         caps: [],
         commands: [],
         permissions: {},
@@ -113,12 +111,6 @@ class ClawdbotBridge {
         userAgent: 'ag-dev/1.0.0'
       }
     };
-    // Register as pending so _handleMessage processes the response
-    const reqId = connectFrame.id;
-    this.pendingRequests.set(reqId, {
-      _isConnect: true,
-      resolve: () => {},
-    });
     this._send(connectFrame);
   }
 
@@ -240,21 +232,12 @@ class ClawdbotBridge {
    * @param {object} options - { label, model, agentId, channel, systemPrompt, ... }
    */
   async spawnSession(task, options = {}) {
-    // Use the 'agent' method which spawns/sends to a sub-agent session
-
     const params = {
-      message: task,
-      agentId: options.agentId || undefined,
-      sessionKey: options.label || undefined,
-      thinking: options.thinking || undefined,
-      extraSystemPrompt: options.systemPrompt || undefined,
-      idempotencyKey: crypto.randomUUID(),
+      task,
+      ...options
     };
-    const res = await this._rpc('agent', params, 120000);
-    if (res.ok) {
-      const payload = res.payload || {};
-      return { ok: true, session: { key: payload.sessionKey || options.label, ...payload } };
-    }
+    const res = await this._rpc('sessions.spawn', params, 120000);
+    if (res.ok) return { ok: true, session: res.payload };
     return { ok: false, error: res.error };
   }
 
@@ -264,12 +247,7 @@ class ClawdbotBridge {
    * @param {string} message - Message text
    */
   async sendToSession(key, message) {
-
-    const res = await this._rpc('chat.send', {
-      sessionKey: key,
-      message,
-      idempotencyKey: crypto.randomUUID(),
-    }, 120000);
+    const res = await this._rpc('sessions.send', { key, message }, 120000);
     if (res.ok) return { ok: true, result: res.payload };
     return { ok: false, error: res.error };
   }
@@ -279,7 +257,7 @@ class ClawdbotBridge {
    * @param {string} key - Session key
    */
   async getSessionHistory(key) {
-    const res = await this._rpc('chat.history', { sessionKey: key });
+    const res = await this._rpc('sessions.history', { key });
     if (res.ok) return { ok: true, history: res.payload?.messages || res.payload || [] };
     return { ok: false, error: res.error, history: [] };
   }

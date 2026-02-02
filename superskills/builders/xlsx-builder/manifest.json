@@ -1,0 +1,81 @@
+{
+  "name": "xlsx-builder",
+  "version": "1.0.0",
+  "category": "builder",
+  "description": "Builds Microsoft Excel XLSX files from scratch using Office Open XML format. Supports multiple sheets, headers with bold formatting, and auto-width columns.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "sheets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Sheet name"
+              },
+              "headers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Column headers"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": ["string", "number", "boolean", "null"]
+                  }
+                },
+                "description": "Data rows"
+              }
+            },
+            "required": ["name", "headers", "rows"]
+          }
+        },
+        "title": {
+          "type": "string",
+          "description": "Workbook title"
+        }
+      },
+      "required": ["sheets"]
+    },
+    "required": ["sheets"],
+    "example": {
+      "title": "Sales Report",
+      "sheets": [
+        {
+          "name": "Q1 Data",
+          "headers": ["Product", "Revenue", "Units"],
+          "rows": [
+            ["Product A", 10000, 100],
+            ["Product B", 15000, 150],
+            ["Product C", 8000, 80]
+          ]
+        }
+      ]
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string",
+          "description": "Path to generated XLSX file"
+        }
+      }
+    }
+  },
+  "tokenSavings": "Generates spreadsheets without needing 800+ tokens of Excel XML formatting instructions",
+  "tags": ["xlsx", "excel", "spreadsheet", "office", "data"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 60
+}

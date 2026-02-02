@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SuperSkill Manifest",
+  "description": "JSON Schema for SuperSkill manifest validation",
+  "type": "object",
+  "required": ["name", "version", "category", "description", "input", "output", "run"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique name of the SuperSkill",
+      "pattern": "^[a-z0-9_-]+$",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version number",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["generator", "transformer", "analyzer", "connector", "builder", "validator"],
+      "description": "Category of the SuperSkill"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what this SuperSkill does",
+      "minLength": 10
+    },
+    "input": {
+      "type": "object",
+      "description": "Input specification",
+      "required": ["type", "schema"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["json", "text", "file", "url", "stream"]
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON schema for input validation"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Required field names"
+        },
+        "example": {
+          "description": "Example input data"
+        }
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "description": "Output specification",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["json", "text", "file", "stream"]
+        },
+        "structure": {
+          "type": "object",
+          "description": "JSON schema for output structure"
+        },
+        "format": {
+          "type": "string",
+          "description": "Output format specification"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tokenSavings": {
+      "type": "string",
+      "description": "Estimated token savings description",
+      "default": "Not specified"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for searchability",
+      "default": []
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Runtime dependencies",
+      "default": []
+    },
+    "run": {
+      "type": "string",
+      "description": "Command to execute the SuperSkill",
+      "minLength": 1
+    },
+    "timeout": {
+      "type": "number",
+      "description": "Maximum execution time in seconds",
+      "minimum": 1,
+      "maximum": 3600,
+      "default": 60
+    }
+  },
+  "additionalProperties": false
+}

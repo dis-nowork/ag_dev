@@ -1,91 +1,15 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
 
-/* AG Dev — Design System Base */
-
-:root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2A2A2E #0A0A0B;
-}
-
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: #0A0A0B;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #2A2A2E;
-  border-radius: 3px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #35353A;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 body {
   margin: 0;
+  font-family: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
   background: #0A0A0B;
   color: #EDEDEF;
-  overflow: hidden;
 }
 
-/* cmdk overrides */
-[cmdk-root] {
-  font-family: 'Inter', system-ui, sans-serif;
-}
-
-[cmdk-item] {
-  cursor: pointer;
-}
-
-[cmdk-item][data-selected="true"] {
-  background: #1C1C1F;
-}
-
-[cmdk-group-heading] {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 8px 12px 4px;
-  color: #5A5A5D;
-}
-
-/* React Flow overrides */
-.react-flow__background {
-  background: #0A0A0B !important;
-}
-
-.react-flow__controls {
-  background: #141416 !important;
-  border: 1px solid #2A2A2E !important;
-  border-radius: 8px !important;
-  overflow: hidden;
-}
-
-.react-flow__controls-button {
-  background: #141416 !important;
-  border-bottom: 1px solid #2A2A2E !important;
-  fill: #8B8B8E !important;
-}
-
-.react-flow__controls-button:hover {
-  background: #1C1C1F !important;
-}
-
-/* Selection */
-::selection {
-  background: rgba(59, 130, 246, 0.3);
-  color: #EDEDEF;
-}
+.xterm { padding: 8px; }
+.xterm-viewport { overflow-y: auto !important; }

@@ -1,0 +1,8 @@
+{
+  "id": "content-marketing",
+  "name": "Content & Marketing",
+  "description": "Content creation, copywriting, and marketing strategy",
+  "icon": "📝",
+  "agents": ["content-writer", "seo-analyst"],
+  "defaultWorkflow": null
+}

@@ -1,0 +1,8 @@
+{
+  "id": "backend-api",
+  "name": "Backend & API",
+  "description": "API design, implementation, and testing",
+  "icon": "⚙️",
+  "agents": ["architect", "dev", "qa"],
+  "defaultWorkflow": "greenfield-service"
+}

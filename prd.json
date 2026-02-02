@@ -1,0 +1,43 @@
+{
+  "name": "My App",
+  "branchName": "feature/1769987527922",
+  "createdAt": "2026-02-01T23:12:07.922Z",
+  "userStories": [
+    {
+      "id": "story-1",
+      "title": "Create user authentication",
+      "description": "Create user authentication",
+      "priority": 1,
+      "passes": false,
+      "acceptanceCriteria": [],
+      "learnings": ""
+    },
+    {
+      "id": "story-2",
+      "title": "Build API endpoints",
+      "description": "Build API endpoints",
+      "priority": 2,
+      "passes": false,
+      "acceptanceCriteria": [],
+      "learnings": ""
+    },
+    {
+      "id": "story-3",
+      "title": "Add unit tests",
+      "description": "Add unit tests",
+      "priority": 3,
+      "passes": false,
+      "acceptanceCriteria": [],
+      "learnings": ""
+    },
+    {
+      "id": "story-4",
+      "title": "Setup CI/CD",
+      "description": "Setup CI/CD",
+      "priority": 4,
+      "passes": false,
+      "acceptanceCriteria": [],
+      "learnings": ""
+    }
+  ]
+}

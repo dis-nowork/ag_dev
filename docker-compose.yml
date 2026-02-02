@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  ag-dev:
+    build: .
+    ports:
+      - "3456:3456"
+    volumes:
+      - ./data:/app/data
+      - ./project-context:/app/project-context
+    environment:
+      - NODE_ENV=production
+      - AG_DEV_PORT=3456
+    restart: unless-stopped

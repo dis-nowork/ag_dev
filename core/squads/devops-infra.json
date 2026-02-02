@@ -1,0 +1,8 @@
+{
+  "id": "devops-infra",
+  "name": "DevOps & Infrastructure",
+  "description": "CI/CD, deployment, monitoring, and infrastructure",
+  "icon": "🔧",
+  "agents": ["devops", "architect"],
+  "defaultWorkflow": null
+}

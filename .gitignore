@@ -1,6 +1,7 @@
 node_modules/
-.env
+ui-dist/
 *.log
-state.json
-ui/node_modules/
-ui/dist/
+data/graph/*.json
+/tmp/
+superskills/*/output/
+.DS_Store

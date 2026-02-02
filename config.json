@@ -1,16 +1,35 @@
 {
-  "port": 3000,
-  "projectRoot": "/root/phantom_id",
-  "name": "Phantom Id",
-  "gateway": {
-    "url": "ws://127.0.0.1:18789",
-    "token": ""
+  "_comment": "Environment variable overrides: AG_DEV_PORT, AG_DEV_HOST, AG_DEV_DATA_DIR",
+  "server": {
+    "port": 3456,
+    "host": "0.0.0.0"
+  },
+  "ui": {
+    "port": 5173,
+    "apiProxy": "http://localhost:3456"
+  },
+  "terminals": {
+    "maxCount": 16,
+    "bufferSize": 10000,
+    "defaultCols": 120,
+    "defaultRows": 40
   },
   "agents": {
-    "definitionsDir": "./core/agents",
-    "autoSpawn": false
+    "configPath": "./core/agents",
+    "workflowsPath": "./core/workflows"
   },
-  "auth": {
-    "token": "46090d46-db13-44de-b3d3-046b76baa058"
+  "ralph": {
+    "maxIterations": 20,
+    "qualityCommands": [],
+    "timeoutPerTask": 300000
+  },
+  "memory": {
+    "baseDir": "./memory"
+  },
+  "projectContext": {
+    "dir": "./project-context"
+  },
+  "data": {
+    "dir": "./data"
   }
 }
