@@ -44,6 +44,7 @@ export default function App() {
   useEffect(() => {
     fetch('/api/terminals').then(r => r.json()).then(setTerminals).catch(() => {})
     fetch('/api/agents').then(r => r.json()).then(setAgents).catch(() => {})
+    useStore.getState().fetchSquads()
   }, [])
 
   // Refresh terminals periodically (fallback to SSE)
@@ -72,27 +73,40 @@ export default function App() {
 
   const handleSquadSelect = async (squad: Squad, task: string) => {
     try {
-      // Create workflow state
-      const newWorkflow = {
-        active: true,
-        name: `${squad.name} Workflow`,
-        currentStep: squad.agents[0],
-        steps: squad.agents.map((agent, index) => ({
-          id: `step-${index}`,
-          agent,
-          status: index === 0 ? 'working' : 'waiting'
-        }))
+      const res = await fetch(`/api/squads/${squad.id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task })
+      })
+      const result = await res.json()
+      
+      if (result.error) {
+        console.error('Squad activation failed:', result.error)
+        return
       }
-      setWorkflowState(newWorkflow)
-
-      // Deploy agents from squad
-      for (const agentRole of squad.agents) {
-        await handleNewAgent({
-          name: agentRole,
-          type: 'agent',
-          task: task
+      
+      // Set active squad
+      setActiveSquad(squad.id)
+      
+      // Create workflow state from server response
+      if (result.agents && result.agents.length > 0) {
+        setWorkflowState({
+          active: true,
+          name: `${squad.name} Workflow`,
+          currentStep: result.agents[0]?.name || squad.agents[0],
+          steps: (result.agents || squad.agents.map((a: string) => ({ name: a }))).map((agent: any, i: number) => ({
+            id: `step-${i}`,
+            agent: agent.name || agent,
+            status: i === 0 ? 'working' : 'waiting'
+          }))
         })
       }
+      
+      // Switch to workflow view
+      setView('workflow')
+      
+      // Refresh terminals
+      fetch('/api/terminals').then(r => r.json()).then(setTerminals).catch(() => {})
     } catch (e) {
       console.error('Failed to deploy squad:', e)
     }

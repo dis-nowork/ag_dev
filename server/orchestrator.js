@@ -62,8 +62,26 @@ class Orchestrator {
           const name = path.basename(file, path.extname(file));
           
           try {
-            const workflow = yaml.load(content);
-            workflow.name = name;
+            const parsed = yaml.load(content);
+            const wf = parsed.workflow || parsed;
+            // Extract actual steps from sequence, filtering phase headers
+            const rawSequence = wf.sequence || wf.steps || [];
+            const steps = rawSequence
+              .filter(item => item.agent && !item.phase)  // only items with an agent
+              .map((item, i) => ({
+                type: 'agent',
+                agent: item.agent,
+                task: item.task || item.creates || '',
+                name: item.agent,
+                status: 'pending',
+                requires: item.requires || null,
+                optional: item.optional || false
+              }));
+            const workflow = {
+              ...wf,
+              name: name,
+              steps: steps
+            };
             this.workflows.set(name, workflow);
           } catch (yamlError) {
             console.error(`Error parsing workflow ${file}:`, yamlError);

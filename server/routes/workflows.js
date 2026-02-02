@@ -29,6 +29,23 @@ module.exports = function(deps) {
   });
 
   /**
+   * Pause active workflow execution
+   */
+  router.post('/active/pause', (req, res) => {
+    try {
+      const execution = orchestrator.getWorkflowExecutionState();
+      if (execution && execution.status === 'running') {
+        execution.status = 'paused';
+        res.json(execution);
+      } else {
+        res.status(400).json({ error: 'No active workflow to pause' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * Stop active workflow execution
    */
   router.post('/active/stop', (req, res) => {

@@ -138,6 +138,7 @@ interface Store {
   
   // New actions
   setSquads: (squads: Squad[]) => void
+  fetchSquads: () => Promise<void>
   setActiveSquad: (id: string | null) => void
   addChatMessage: (msg: ChatMessage) => void
   setView: (view: 'grid' | 'squads' | 'workflow' | 'ralph' | 'context' | 'superskills') => void
@@ -244,6 +245,27 @@ export const useStore = create<Store>((set) => ({
   
   // New actions
   setSquads: (squads) => set({ squads }),
+  fetchSquads: async () => {
+    try {
+      const response = await fetch('/api/squads')
+      const data = await response.json()
+      if (data.squads && data.squads.length > 0) {
+        const squads = data.squads.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          icon: s.icon || '⚡',
+          agents: s.agents || [],
+          defaultWorkflow: s.defaultWorkflow || null,
+          color: getSquadColor(s.id).main
+        }))
+        set({ squads })
+      }
+    } catch (error) {
+      console.error('Failed to fetch squads:', error)
+      // Keep default squads as fallback
+    }
+  },
   setActiveSquad: (id) => set({ activeSquad: id }),
   addChatMessage: (msg) => set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
   setView: (view) => set({ currentView: view }),

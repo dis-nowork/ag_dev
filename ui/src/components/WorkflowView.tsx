@@ -1,8 +1,30 @@
+import { useEffect } from 'react'
 import { Pause, Square, ArrowRight } from 'lucide-react'
 import { useStore } from '../store'
 
 export function WorkflowView() {
   const { workflowState, setWorkflowState } = useStore()
+
+  // Fetch active workflow on mount
+  useEffect(() => {
+    fetch('/api/workflows/active')
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.status === 'running') {
+          setWorkflowState({
+            active: true,
+            name: data.name,
+            currentStep: data.steps[data.currentStep]?.agent || '',
+            steps: data.steps.map((s: any, i: number) => ({
+              id: `step-${i}`,
+              agent: s.agent || s.name,
+              status: i < data.currentStep ? 'done' : i === data.currentStep ? 'working' : 'waiting'
+            }))
+          })
+        }
+      })
+      .catch(() => {}) // Silently fail — might not have active workflow
+  }, [])
 
   if (!workflowState || !workflowState.active) {
     return (
@@ -14,14 +36,21 @@ export function WorkflowView() {
     )
   }
 
-  const handlePauseWorkflow = () => {
-    // TODO: Implement pause workflow API call
-    console.log('Pausing workflow...')
+  const handlePauseWorkflow = async () => {
+    try {
+      await fetch('/api/workflows/active/pause', { method: 'POST' })
+    } catch (e) {
+      console.error('Failed to pause workflow:', e)
+    }
   }
 
-  const handleStopWorkflow = () => {
-    // TODO: Implement stop workflow API call
-    setWorkflowState(null)
+  const handleStopWorkflow = async () => {
+    try {
+      await fetch('/api/workflows/active/stop', { method: 'POST' })
+      setWorkflowState(null)
+    } catch (e) {
+      console.error('Failed to stop workflow:', e)
+    }
   }
 
   const getStepIcon = (status: string) => {

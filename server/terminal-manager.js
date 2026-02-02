@@ -344,7 +344,12 @@ class TerminalManager extends EventEmitter {
     return this.spawn(id, {
       command,
       args,
-      env: { ...options.env, HOME: isRoot ? '/home/agdev' : process.env.HOME },
+      env: { 
+        ...options.env, 
+        HOME: isRoot ? '/home/agdev' : process.env.HOME,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+        PATH: process.env.PATH
+      },
       ...options
     });
   }
