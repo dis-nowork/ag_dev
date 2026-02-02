@@ -94,11 +94,19 @@ export default function App() {
           active: true,
           name: result.workflow.name || `${squad.name} Workflow`,
           currentStep: result.workflow.steps[0]?.agent || '',
+          startTime: result.workflow.startTime,
+          totalDuration: result.workflow.totalDuration,
           steps: result.workflow.steps.map((step: any, i: number) => ({
             id: `step-${i}`,
             agent: step.agent || step.name,
             task: step.task || '',
-            status: i === 0 ? 'working' : 'waiting'
+            status: i === 0 ? 'working' : 'pending',
+            startTime: step.startTime,
+            endTime: step.endTime,
+            duration: step.duration,
+            phase: step.phase,
+            error: step.error,
+            terminalId: step.terminalId
           }))
         })
       } else if (result.agents && result.agents.length > 0) {
@@ -111,7 +119,8 @@ export default function App() {
             id: `step-${i}`,
             agent: agent.name || agent,
             task: '',
-            status: i === 0 ? 'working' : 'waiting'
+            status: i === 0 ? 'working' : 'pending',
+            terminalId: agent.terminalId
           }))
         })
       }
