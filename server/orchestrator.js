@@ -849,7 +849,12 @@ class Orchestrator {
    * Get current workflow execution state
    */
   getWorkflowExecutionState() {
-    return this.workflowExecution;
+    if (this.workflowExecution) return this.workflowExecution;
+    // Fallback: check activeWorkflows (populated by startWorkflow)
+    for (const wf of this.activeWorkflows.values()) {
+      if (wf.status === 'running') return wf;
+    }
+    return null;
   }
 
   /**
