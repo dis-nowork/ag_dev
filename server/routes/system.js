@@ -7,9 +7,9 @@ module.exports = function(deps) {
   const { stateManager, orchestrator, squadManager, terminalManager, superskillRegistry, sseClients, broadcast } = deps;
 
   /**
-   * Process orchestrator chat messages with simple rule-based responses
+   * Process orchestrator chat messages and execute commands
    */
-  function processOrchestratorChat(message) {
+  async function processOrchestratorChat(message) {
     const activeWorkflow = orchestrator.getWorkflowExecutionState();
     const activeSquads = squadManager.getActiveSquads();
     const terminals = terminalManager.list();

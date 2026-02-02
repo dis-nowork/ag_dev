@@ -5,6 +5,33 @@
 
 ---
 
+## 🔜 V2.2 — Backlog Imediato (Chat Executável + Controles)
+
+### Chat do Orchestrator executa ações de verdade
+**Arquivo:** `server/routes/system.js` → `processOrchestratorChat()`
+- **Problema:** O chat apenas sugere comandos API em vez de executá-los
+- **Fix:** Tornar `processOrchestratorChat` async e chamar os métodos reais:
+  - `spawn {agent} {task}` → `orchestrator.spawnAgent(agentName, task)`
+  - `start {workflow}` → `orchestrator.startWorkflow(workflowName)`
+  - `stop` → `orchestrator.stopWorkflowExecution()` + kill terminals
+  - `pause` → `stateManager.pauseAll()`
+  - `resume` → `stateManager.resumeAll()`
+  - `list agents` → retorna agents com status em tempo real
+  - `list workflows` → retorna workflows disponíveis
+
+### Pause/Stop/Resume funcional na UI
+- Botões Pause/Stop no WorkflowView precisam de rotas server-side funcionais
+- `POST /api/workflows/active/pause` → pausa o workflow ativo
+- `POST /api/workflows/active/stop` → para o workflow e mata terminals
+- `POST /api/workflows/active/resume` → retoma workflow pausado
+
+### SuperSkills execução pela UI
+- Card de cada skill com campos de input baseados no manifest
+- Botão "Run" que executa e mostra output inline
+- Histórico de execuções recentes
+
+---
+
 ## 🎯 Visão V3
 
 **V1** = Primeira versão, protótipo inicial.
