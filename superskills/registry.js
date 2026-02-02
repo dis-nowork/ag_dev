@@ -328,9 +328,11 @@ class SuperSkillRegistry {
       // If running as root, switch to 'nobody' user for security
       if (process.getuid && process.getuid() === 0) {
         try {
-          const os = require('os');
-          spawnOptions.uid = os.userInfo('nobody').uid;
-          spawnOptions.gid = os.userInfo('nobody').gid;
+          const { execSync } = require('child_process');
+          const uid = parseInt(execSync("id -u nobody", { encoding: 'utf-8' }).trim(), 10);
+          const gid = parseInt(execSync("id -g nobody", { encoding: 'utf-8' }).trim(), 10);
+          spawnOptions.uid = uid;
+          spawnOptions.gid = gid;
         } catch (error) {
           // Fallback to numeric values if 'nobody' user lookup fails
           spawnOptions.uid = 65534; // nobody user

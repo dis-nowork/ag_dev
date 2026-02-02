@@ -101,41 +101,36 @@ const deps = {
 };
 
 // --- Mount routes ---
-// Mount under /api/ for backward compatibility
-app.use('/api/terminals', require('./routes/terminals')(deps));
-app.use('/api/agents', require('./routes/agents')(deps));
-app.use('/api/workflows', require('./routes/workflows')(deps));
-app.use('/api/squads', require('./routes/squads')(deps));
-app.use('/api/ralph', require('./routes/ralph')(deps));
-app.use('/api/context', require('./routes/context')(deps));
-app.use('/api/graph', require('./routes/graph')(deps));
-app.use('/api/superskills', require('./routes/superskills')(deps));
-app.use('/api/runtime', require('./routes/runtime')(deps));
-app.use('/api/memory', require('./routes/memory')(deps));
+// Create route handlers once, mount under both /api/ and /api/v1/
+const routeModules = {
+  terminals: require('./routes/terminals')(deps),
+  agents: require('./routes/agents')(deps),
+  workflows: require('./routes/workflows')(deps),
+  squads: require('./routes/squads')(deps),
+  ralph: require('./routes/ralph')(deps),
+  context: require('./routes/context')(deps),
+  graph: require('./routes/graph')(deps),
+  superskills: require('./routes/superskills')(deps),
+  runtime: require('./routes/runtime')(deps),
+  memory: require('./routes/memory')(deps),
+};
 
-// Mount under /api/v1/ for API versioning
-app.use('/api/v1/terminals', require('./routes/terminals')(deps));
-app.use('/api/v1/agents', require('./routes/agents')(deps));
-app.use('/api/v1/workflows', require('./routes/workflows')(deps));
-app.use('/api/v1/squads', require('./routes/squads')(deps));
-app.use('/api/v1/ralph', require('./routes/ralph')(deps));
-app.use('/api/v1/context', require('./routes/context')(deps));
-app.use('/api/v1/graph', require('./routes/graph')(deps));
-app.use('/api/v1/superskills', require('./routes/superskills')(deps));
-app.use('/api/v1/runtime', require('./routes/runtime')(deps));
-app.use('/api/v1/memory', require('./routes/memory')(deps));
+for (const [name, handler] of Object.entries(routeModules)) {
+  app.use(`/api/${name}`, handler);      // backward compat
+  app.use(`/api/v1/${name}`, handler);   // versioned
+}
 
 app.use('/', require('./routes/system')(deps));
-
-// --- Global error handling middleware ---
-const { errorHandler } = require('./middleware/error-handler');
-app.use(errorHandler);
 
 // --- Static UI ---
 const uiDistPath = path.join(__dirname, '../ui-dist');
 if (fs.existsSync(uiDistPath)) {
   app.use(express.static(uiDistPath));
 }
+
+// --- Global error handling middleware (must be last) ---
+const { errorHandler } = require('./middleware/error-handler');
+app.use(errorHandler);
 
 // --- Process error handlers ---
 process.on('uncaughtException', (error) => {

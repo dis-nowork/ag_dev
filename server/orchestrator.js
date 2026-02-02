@@ -206,9 +206,27 @@ class Orchestrator {
     let terminal;
     
     // Use runtime if available and connected, otherwise fallback to PTY
-    if (this.runtime && this.runtime.isConnected && this.runtime.isConnected()) {
+    if (this.runtime && this.runtime.connected) {
       try {
-        terminal = await this.runtime.spawnAgent(prompt, options);
+        const result = await this.runtime.spawnAgent(agentName, {
+          task: prompt,
+          label: `ag-dev:${agentName}`,
+          systemPrompt: prompt,
+          ...options
+        });
+        if (result.ok && result.sessionKey) {
+          // Return a terminal-compatible object for state tracking
+          terminal = {
+            id: result.sessionKey,
+            command: 'clawdbot-runtime',
+            args: [agentName],
+            status: 'running',
+            startTime: Date.now(),
+            _runtimeSession: true
+          };
+        } else {
+          throw new Error(result.error || 'Runtime spawn failed');
+        }
       } catch (error) {
         console.warn('Failed to spawn agent via runtime, falling back to PTY:', error.message);
         terminal = this.terminalManager.spawnClaudeAgent(prompt, options);
