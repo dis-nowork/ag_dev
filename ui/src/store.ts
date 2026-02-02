@@ -37,19 +37,26 @@ export interface ChatMessage {
   timestamp: number
 }
 
+export interface WorkflowStep {
+  id: string
+  agent: string
+  status: 'pending' | 'working' | 'done' | 'error'
+  task?: string
+  startTime?: number
+  endTime?: number
+  duration?: number
+  terminalId?: string
+  phase?: string
+  error?: string
+}
+
 export interface WorkflowState {
   active: boolean
   name: string
   currentStep: string
-  steps: Array<{ 
-    id: string; 
-    agent: string; 
-    status: string;
-    task?: string;
-    startTime?: number;
-    endTime?: number;
-    duration?: number;
-  }>
+  steps: WorkflowStep[]
+  startTime?: number
+  totalDuration?: number
 }
 
 // Ralph Loop state
