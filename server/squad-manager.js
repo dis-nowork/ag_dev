@@ -171,12 +171,27 @@ class SquadManager {
       activeInstance.agents = spawnedAgents;
       activeInstance.status = 'active';
       
+      // Start the associated workflow if one exists
+      let workflowInstance = null;
+      if (squad.defaultWorkflow) {
+        try {
+          workflowInstance = await this.orchestrator.startWorkflow(
+            squad.defaultWorkflow, 
+            { task, squadId, agents: squad.agents }
+          );
+          activeInstance.workflowId = workflowInstance.id;
+        } catch (wfError) {
+          console.warn(`Could not start workflow '${squad.defaultWorkflow}' for squad '${squadId}':`, wfError.message);
+        }
+      }
+      
       return {
         squad: squad,
         instance: activeInstance,
         agentsSpawned: spawnedAgents.length,
         agentsFailed: spawnedAgents.filter(a => a.status === 'error').length,
-        multipleDevs: spawnedAgents.filter(a => a.originalName === 'dev').length
+        multipleDevs: spawnedAgents.filter(a => a.originalName === 'dev').length,
+        workflow: workflowInstance ? { id: workflowInstance.id, name: workflowInstance.name, steps: workflowInstance.steps } : null
       };
       
     } catch (error) {

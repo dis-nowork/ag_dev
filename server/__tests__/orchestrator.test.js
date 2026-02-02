@@ -21,7 +21,8 @@ describe('Orchestrator', () => {
       spawnClaudeAgent: jest.fn(),
       spawnGenericCommand: jest.fn(),
       kill: jest.fn(),
-      on: jest.fn()
+      on: jest.fn(),
+      setMetadata: jest.fn()
     };
 
     mockStateManager = {

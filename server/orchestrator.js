@@ -67,7 +67,7 @@ class Orchestrator {
             // Extract actual steps from sequence, filtering phase headers
             const rawSequence = wf.sequence || wf.steps || [];
             const steps = rawSequence
-              .filter(item => item.agent && !item.phase)  // only items with an agent
+              .filter(item => item.agent)  // items with an agent (phase headers without agent are excluded)
               .map((item, i) => ({
                 type: 'agent',
                 agent: item.agent,
@@ -252,6 +252,15 @@ class Orchestrator {
     } else {
       // Fallback to PTY when runtime is not available
       terminal = this.terminalManager.spawnClaudeAgent(prompt, options);
+    }
+    
+    // Set terminal metadata so list() shows the agent name (not "sudo")
+    if (!terminal._runtimeSession) {
+      this.terminalManager.setMetadata(terminal.id, {
+        name: definition.agentName || agentName,
+        type: 'agent',
+        task: task
+      });
     }
     
     // Update state
