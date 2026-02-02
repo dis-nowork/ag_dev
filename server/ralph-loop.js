@@ -282,10 +282,15 @@ Begin working now.`;
   async _spawnAgent(prompt) {
     // Spawn Claude Code CLI with the prompt
     const id = uuidv4();
+    const isRoot = process.getuid && process.getuid() === 0;
+    const claudeBin = isRoot ? '/usr/local/bin/claude-bin' : 'claude';
     const result = this.terminalManager.spawn(id, {
-      command: 'claude',
-      args: ['--print', '--dangerously-skip-permissions', '-p', prompt],
+      command: isRoot ? 'sudo' : claudeBin,
+      args: isRoot 
+        ? ['-u', 'agdev', '-E', claudeBin, '--print', '--dangerously-skip-permissions', '-p', prompt]
+        : ['--print', '--dangerously-skip-permissions', '-p', prompt],
       cwd: this.projectRoot,
+      env: { HOME: isRoot ? '/home/agdev' : process.env.HOME },
     });
     
     this.terminalManager.setMetadata(id, {

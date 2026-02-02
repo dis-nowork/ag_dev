@@ -40,8 +40,6 @@ app.use(express.json());
 // --- Initialize components ---
 const terminalManager = new TerminalManager(config.terminals);
 const stateManager = new StateManager();
-const orchestrator = new Orchestrator(terminalManager, stateManager, config);
-const squadManager = new SquadManager(orchestrator);
 
 const ralphLoop = new RalphLoop(terminalManager, {
   projectRoot: config.projectRoot || path.join(__dirname, '..'),
@@ -66,6 +64,10 @@ runtime.connect().then(connected => {
 });
 
 module.exports.runtime = runtime;
+
+// Initialize orchestrator with runtime support
+const orchestrator = new Orchestrator(terminalManager, stateManager, config, runtime);
+const squadManager = new SquadManager(orchestrator);
 
 const agentGraph = new AgentGraph(path.join(__dirname, '../data/graph'));
 agentGraph.autoSave(30000);
@@ -99,6 +101,7 @@ const deps = {
 };
 
 // --- Mount routes ---
+// Mount under /api/ for backward compatibility
 app.use('/api/terminals', require('./routes/terminals')(deps));
 app.use('/api/agents', require('./routes/agents')(deps));
 app.use('/api/workflows', require('./routes/workflows')(deps));
@@ -109,13 +112,41 @@ app.use('/api/graph', require('./routes/graph')(deps));
 app.use('/api/superskills', require('./routes/superskills')(deps));
 app.use('/api/runtime', require('./routes/runtime')(deps));
 app.use('/api/memory', require('./routes/memory')(deps));
+
+// Mount under /api/v1/ for API versioning
+app.use('/api/v1/terminals', require('./routes/terminals')(deps));
+app.use('/api/v1/agents', require('./routes/agents')(deps));
+app.use('/api/v1/workflows', require('./routes/workflows')(deps));
+app.use('/api/v1/squads', require('./routes/squads')(deps));
+app.use('/api/v1/ralph', require('./routes/ralph')(deps));
+app.use('/api/v1/context', require('./routes/context')(deps));
+app.use('/api/v1/graph', require('./routes/graph')(deps));
+app.use('/api/v1/superskills', require('./routes/superskills')(deps));
+app.use('/api/v1/runtime', require('./routes/runtime')(deps));
+app.use('/api/v1/memory', require('./routes/memory')(deps));
+
 app.use('/', require('./routes/system')(deps));
+
+// --- Global error handling middleware ---
+const { errorHandler } = require('./middleware/error-handler');
+app.use(errorHandler);
 
 // --- Static UI ---
 const uiDistPath = path.join(__dirname, '../ui-dist');
 if (fs.existsSync(uiDistPath)) {
   app.use(express.static(uiDistPath));
 }
+
+// --- Process error handlers ---
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error.stack || error.message);
+  // Log but don't crash - let the server continue running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Log but don't crash - let the server continue running
+});
 
 // --- Start server ---
 app.listen(port, config.server.host, () => {

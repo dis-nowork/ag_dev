@@ -333,12 +333,18 @@ class TerminalManager extends EventEmitter {
    */
   spawnClaudeAgent(prompt, options = {}) {
     const id = uuidv4();
-    const command = 'claude';
-    const args = ['--print', '--dangerously-skip-permissions', '-p', prompt];
+    // Run as non-root user to allow --dangerously-skip-permissions
+    const isRoot = process.getuid && process.getuid() === 0;
+    const claudeBin = isRoot ? '/usr/local/bin/claude-bin' : 'claude';
+    const command = isRoot ? 'sudo' : claudeBin;
+    const args = isRoot 
+      ? ['-u', 'agdev', '-E', claudeBin, '--print', '--dangerously-skip-permissions', '-p', prompt]
+      : ['--print', '--dangerously-skip-permissions', '-p', prompt];
     
     return this.spawn(id, {
       command,
       args,
+      env: { ...options.env, HOME: isRoot ? '/home/agdev' : process.env.HOME },
       ...options
     });
   }

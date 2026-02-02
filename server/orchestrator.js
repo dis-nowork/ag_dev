@@ -6,10 +6,11 @@ const yaml = require('js-yaml');
  * Orquestrador - Coordena agents, distribui tasks
  */
 class Orchestrator {
-  constructor(terminalManager, stateManager, config = {}) {
+  constructor(terminalManager, stateManager, config = {}, runtime = null) {
     this.terminalManager = terminalManager;
     this.stateManager = stateManager;
     this.config = config;
+    this.runtime = runtime;
     
     this.agentDefinitions = new Map(); // nome -> definition
     this.workflows = new Map(); // nome -> workflow
@@ -202,8 +203,20 @@ class Orchestrator {
     // Create prompt for the agent
     const prompt = this.createAgentPrompt(definition, task);
     
-    // Spawn terminal with Claude Code CLI
-    const terminal = this.terminalManager.spawnClaudeAgent(prompt, options);
+    let terminal;
+    
+    // Use runtime if available and connected, otherwise fallback to PTY
+    if (this.runtime && this.runtime.isConnected && this.runtime.isConnected()) {
+      try {
+        terminal = await this.runtime.spawnAgent(prompt, options);
+      } catch (error) {
+        console.warn('Failed to spawn agent via runtime, falling back to PTY:', error.message);
+        terminal = this.terminalManager.spawnClaudeAgent(prompt, options);
+      }
+    } else {
+      // Fallback to PTY when runtime is not available
+      terminal = this.terminalManager.spawnClaudeAgent(prompt, options);
+    }
     
     // Update state
     this.stateManager.updateAgent(terminal.id, {

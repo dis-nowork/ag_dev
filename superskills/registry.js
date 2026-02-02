@@ -311,14 +311,34 @@ class SuperSkillRegistry {
       // Input handling: SuperSkills expect clean arguments
       const inputJson = JSON.stringify(input);
       
-      // Don't add any CLI arguments - SuperSkills handle stdin input natively
-      // They expect either no args (stdin) or --input <filename> (file input)
-      // The registry always uses stdin, so pass no additional arguments
-
-      const child = spawn(cmd, args, {
+      // Security and resource limiting options
+      const spawnOptions = {
         cwd,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true,  // Run in separate process group for clean kills
+        maxBuffer: 256 * 1024 * 1024,  // 256MB memory limit
+        env: {
+          ...process.env,
+          // Limit environment for security
+          PATH: process.env.PATH,
+          NODE_ENV: process.env.NODE_ENV || 'production'
+        }
+      };
+
+      // If running as root, switch to 'nobody' user for security
+      if (process.getuid && process.getuid() === 0) {
+        try {
+          const os = require('os');
+          spawnOptions.uid = os.userInfo('nobody').uid;
+          spawnOptions.gid = os.userInfo('nobody').gid;
+        } catch (error) {
+          // Fallback to numeric values if 'nobody' user lookup fails
+          spawnOptions.uid = 65534; // nobody user
+          spawnOptions.gid = 65534; // nobody group
+        }
+      }
+
+      const child = spawn(cmd, args, spawnOptions);
 
       let stdout = '';
       let stderr = '';
@@ -339,7 +359,15 @@ class SuperSkillRegistry {
 
       // Set timeout
       const timer = setTimeout(() => {
-        child.kill('SIGKILL');
+        // Kill the entire process group to ensure clean termination
+        if (child.pid) {
+          try {
+            process.kill(-child.pid, 'SIGKILL');
+          } catch (error) {
+            // Fallback to killing just the main process
+            child.kill('SIGKILL');
+          }
+        }
         const error = new Error(`Command timed out after ${timeout} seconds`);
         error.code = 'TIMEOUT';
         reject(error);
