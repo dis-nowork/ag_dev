@@ -1,326 +1,215 @@
 ---
 name: ag-dev
-description: Multi-agent software development orchestration. Spawns specialized Claude Code CLI agents (analyst, architect, dev, qa, devops, pm, po, ux, data-engineer, scrum-master, content-writer, seo-analyst) in tmux sessions to build software through coordinated workflows — from greenfield projects to brownfield discovery. Use when asked to build, plan, or analyze a software project with multiple agents.
+description: Multi-agent software development orchestration. Spawns specialized Claude Code CLI agents (analyst, architect, dev, qa, devops, pm, po, content-writer, data-engineer, scrum-master, seo-analyst, ux) in tmux sessions to build software through coordinated workflows — from greenfield projects to brownfield discovery. Includes 31 SuperSkills for automated tasks. Use when asked to build, plan, or analyze a software project with multiple agents.
 ---
 
-# AG Dev V3 — Multi-Agent Development Orchestration (OpenClaw Edition)
+# AG Dev — Multi-Agent Development Orchestration
 
-Orchestrate software development using specialized Claude Code CLI agents running in tmux sessions. You (OpenClaw main session) are the **orchestrator** — the brain that coordinates all agents.
-
-> **V3 Philosophy:** Agents that collaborate like a real dev team, where each has deep expertise, the orchestrator enforces quality gates, and nothing gets lost in translation. Via tmux + Claude Code CLI instead of Express + React.
-
----
+Orchestrate software development using specialized Claude Code CLI agents running in tmux sessions. You (OpenClaw main session) are the orchestrator.
 
 ## Architecture
 
 ```
 OpenClaw (you = orchestrator)
   ├── tmux socket: /tmp/agdev.sock
-  │   ├── agent-analyst    → Atlas: Business analysis, discovery
-  │   ├── agent-architect   → Aria: System design, architecture
-  │   ├── agent-dev         → Dex: Implementation, coding, testing
-  │   ├── agent-qa          → Quinn: Quality review, test architecture
-  │   ├── agent-devops      → Gage: CI/CD, repo management, deploy
-  │   ├── agent-pm          → Morgan: PRD creation, product strategy
-  │   ├── agent-po          → Pax: Backlog, story refinement, validation
-  │   ├── agent-ux          → Uma: UX/UI design, design systems
-  │   ├── agent-data        → Dara: Database, migrations, schemas
-  │   ├── agent-sm          → River: Scrum master, story creation
-  │   ├── agent-content     → Content writer, marketing copy
-  │   └── agent-seo         → SEO analyst, digital marketing
-  ├── handoff/              → shared context files between agents
-  └── memory/               → 3-tier memory system (hot/warm/cold)
+  │   ├── agent-analyst       → Business analysis, discovery, research
+  │   ├── agent-architect     → System design, architecture decisions
+  │   ├── agent-dev           → Implementation, coding, testing
+  │   ├── agent-qa            → Quality review, test architecture
+  │   ├── agent-devops        → CI/CD, repo management, deploy
+  │   ├── agent-pm            → PRD creation, product strategy
+  │   ├── agent-po            → Backlog, story refinement, validation
+  │   ├── agent-content-writer → Copy, docs, blog posts, marketing
+  │   ├── agent-data-engineer → DB schemas, migrations, queries, RLS
+  │   ├── agent-scrum-master  → Stories, epics, agile facilitation
+  │   ├── agent-seo-analyst   → SEO, web perf, digital marketing
+  │   └── agent-ux            → UX/UI design, design systems
+  └── handoff/                → shared context files between agents
 ```
-
----
 
 ## Quick Start
 
 ### 1. Receive the project
 
 ```bash
-# Clone if URL provided
 git clone <REPO_URL> /tmp/agdev-project
-PROJECT_DIR="/tmp/agdev-project"
 # Or use existing path
+PROJECT_DIR="/path/to/project"
 ```
 
-### 2. Choose a workflow
+### 2. Choose workflow
 
-| Scenario | Workflow File | Key Agents |
-|----------|--------------|------------|
-| New full-stack app | `workflows/greenfield-fullstack.yaml` | analyst → pm → architect → po → dev → qa |
-| New API/service | `workflows/greenfield-service.yaml` | analyst → pm → architect → po → dev → qa |
-| New frontend/UI | `workflows/greenfield-ui.yaml` | analyst → pm → architect(ux) → po → dev → qa |
-| Feature in existing app | `workflows/brownfield-fullstack.yaml` | analyst → pm → architect → dev → qa |
-| Audit existing codebase | `workflows/brownfield-discovery.yaml` | architect ∥ analyst → qa → pm |
-| QA review loop | `workflows/qa-loop.yaml` | qa ↔ dev (iterate) |
-| Requirements → spec | `workflows/spec-pipeline.yaml` | pm → architect → analyst → pm → po |
+| Scenario | Workflow |
+|----------|----------|
+| New full-stack app | `greenfield-fullstack` |
+| New API/service | `greenfield-service` |
+| New frontend/UI | `greenfield-ui` |
+| Feature in existing project | `brownfield-fullstack` |
+| Audit existing codebase | `brownfield-discovery` |
+| QA review loop | `qa-loop` |
+| Requirements → spec | `spec-pipeline` |
 
-Read the workflow YAML for the full sequence, conditions, and parallel phases.
+Read the workflow file in `{skillDir}/workflows/` for the full sequence.
 
-### 3. Initialize infrastructure
+### 3. Initialize tmux infrastructure
 
 ```bash
 SOCKET="/tmp/agdev.sock"
-bash scripts/setup-agents.sh "$SOCKET" "$PROJECT_DIR"
+PROJECT_DIR="/path/to/project"
+
+# Setup all 12 agents (default) or specify which ones
+bash {skillDir}/scripts/setup-agents.sh "$SOCKET" "$PROJECT_DIR"
+
+# Or specific agents only
+bash {skillDir}/scripts/setup-agents.sh "$SOCKET" "$PROJECT_DIR" analyst architect dev qa
 ```
 
-### 4. Execute workflow phases
-
-For each step, use the dispatch pattern:
+### 4. Run agents in sequence
 
 ```bash
-# Write task to handoff
-cat > "$PROJECT_DIR/.agdev/handoff/current-task.md" << 'EOF'
-# Task: [description]
-## Context
-[relevant info, previous outputs]
-## Instructions
-[what this agent should do]
-## Output
-Save result to: .agdev/handoff/[output-file].md
-EOF
+# Dispatch a task to an agent (interactive Claude Code session)
+bash {skillDir}/scripts/dispatch-agent.sh "$SOCKET" analyst "$PROJECT_DIR" "Analyze the codebase and create a project brief"
 
-# Dispatch to agent
-bash scripts/dispatch-agent.sh "$SOCKET" analyst "$PROJECT_DIR" "Execute the task in .agdev/handoff/current-task.md"
+# Monitor progress
+tmux -S "$SOCKET" capture-pane -p -J -t agent-analyst -S -200
 
-# Monitor (poll for completion)
-while ! tmux -S "$SOCKET" capture-pane -p -t agent-analyst -S -3 | grep -qE '^\$|^❯'; do
-  sleep 10
-done
-
-# Read output for next agent
-cat "$PROJECT_DIR/.agdev/handoff/[output-file].md"
+# Check if done (look for the $ prompt returning)
+tmux -S "$SOCKET" capture-pane -p -t agent-analyst -S -5 | grep -q '\\$'
 ```
 
----
+## All 12 Agents
 
-## Orchestration Patterns
+| Agent | Name | Role | Specialty |
+|-------|------|------|-----------|
+| analyst | Atlas | Business Analyst | Discovery, research, competitive analysis |
+| architect | Aria | System Architect | System design, tech decisions, patterns |
+| dev | Dex | Developer | Implementation, coding, unit tests |
+| qa | Quinn | QA Engineer | Quality review, test architecture, audits |
+| devops | Gage | DevOps Engineer | CI/CD, infra, deploy, repo management |
+| pm | Morgan | Product Manager | PRD creation, product strategy, roadmaps |
+| po | Pax | Product Owner | Backlog, story refinement, acceptance |
+| content-writer | — | Content Writer | Copy, docs, blog posts, marketing materials |
+| data-engineer | Dara | Data Engineer | DB schemas, migrations, queries, RLS |
+| scrum-master | River | Scrum Master | Stories, epics, agile facilitation |
+| seo-analyst | — | SEO Analyst | SEO, web perf, digital marketing |
+| ux | Uma | UX/UI Designer | User research, design systems, components |
 
-### Pattern A: Sequential (most workflows)
-```
-analyst → pm → architect → po → dev → qa → dev (fix) → done
-```
-Run each agent one at a time. Each reads previous agent's output from handoff/.
+## Squads (Pre-configured Teams)
 
-### Pattern B: Parallel Phases (brownfield-discovery)
-```bash
-# Dispatch multiple agents simultaneously
-tmux -S "$SOCKET" send-keys -t agent-architect "..." Enter
-tmux -S "$SOCKET" send-keys -t agent-analyst "..." Enter
-# Wait for ALL to complete before proceeding
-```
+| Squad | Agents | Use Case |
+|-------|--------|----------|
+| backend-api | analyst, architect, dev, data-engineer, qa, devops | Backend API development |
+| frontend-ui | analyst, architect, dev, ux, qa | Frontend/UI development |
+| fullstack-dev | analyst, architect, dev, qa, devops, pm, po | Full-stack projects |
+| content-marketing | content-writer, seo-analyst, ux | Content & marketing |
+| devops-infra | devops, architect, qa | Infrastructure & CI/CD |
 
-### Pattern C: Loop with Quality Gate (qa-loop)
-```
-qa reviews → if REJECT → dev fixes → qa reviews → repeat (max 5 iterations)
-if BLOCKED → escalate to human
-if APPROVE → done
-```
+Squad configs are in `{skillDir}/squads/`.
 
-### Pattern D: Conditional Branching (brownfield-fullstack)
-```
-analyst classifies scope →
-  if SINGLE_STORY → skip to dev
-  if SMALL_FEATURE → skip to story sharding
-  if MAJOR → full workflow
-```
+## 31 SuperSkills
 
-### Pattern E: Squad Activation
-Activate a pre-configured squad of agents for a task:
-```bash
-# Read squad config
-cat squads/fullstack-dev.json
-# Setup only the agents in the squad
-bash scripts/setup-agents.sh "$SOCKET" "$PROJECT_DIR" analyst architect dev qa
-```
+Automated task runners in `{skillDir}/superskills/`. Run via `node {skillDir}/superskills/runner.js <superskill-name>`.
 
----
+### Analyzers (6)
+| SuperSkill | Description |
+|-----------|-------------|
+| code-complexity | Analyze code complexity metrics |
+| csv-summarizer | Summarize CSV data |
+| dep-graph | Generate dependency graphs |
+| git-stats | Git repository statistics |
+| security-scan | Security vulnerability scanning |
+| temporal-analysis | Temporal code analysis |
 
-## Quality Gates (enforce, don't suggest)
+### Builders (6)
+| SuperSkill | Description |
+|-----------|-------------|
+| docx-builder | Generate DOCX documents |
+| file-organize | Organize project files |
+| image-enhance | Enhance images |
+| pdf-builder | Generate PDF documents |
+| static-site | Build static sites |
+| xlsx-builder | Generate Excel spreadsheets |
 
-### V3 Principle: The flow is a straitjacket, not a suggestion.
+### Connectors (4)
+| SuperSkill | Description |
+|-----------|-------------|
+| postgres-query | Query PostgreSQL databases |
+| reddit-fetch | Fetch Reddit content |
+| video-download | Download videos |
+| webhook-fire | Fire webhooks |
 
-After EVERY agent completes, before proceeding:
+### Generators (6)
+| SuperSkill | Description |
+|-----------|-------------|
+| api-scaffold | Scaffold API projects |
+| changelog-gen | Generate changelogs |
+| dockerfile-gen | Generate Dockerfiles |
+| domain-brainstorm | Brainstorm domain names |
+| readme-gen | Generate README files |
+| schema-to-types | Convert schemas to types |
 
-1. **Output Validation** — Does the handoff file exist and have substance?
-2. **Consistency Check** — Does output align with previous artifacts?
-3. **Gate Decision** — PASS / CONCERNS / FAIL / WAIVED
+### Transformers (7)
+| SuperSkill | Description |
+|-----------|-------------|
+| article-extractor | Extract articles from URLs |
+| csv-to-json | Convert CSV to JSON |
+| html-to-md | Convert HTML to Markdown |
+| invoice-parser | Parse invoices |
+| json-to-form | Convert JSON to forms |
+| md-to-slides | Convert Markdown to slides |
+| text-upper | Transform text to uppercase |
 
-```yaml
-quality_gates:
-  code_generation:
-    - lint_check: auto       # Run linter on generated code
-    - type_check: auto       # TypeScript/type validation
-    - test_generation: required  # Tests must exist
-  architecture:
-    - consistency_check: auto    # Cross-reference with PRD
-    - pattern_compliance: auto   # Follows chosen patterns
-  review:
-    - security_scan: auto        # Check for secrets, vulns
-    - performance_check: auto    # Basic perf validation
-    - human_approval: optional   # Escalate if needed
-```
+### Validators (2)
+| SuperSkill | Description |
+|-----------|-------------|
+| lint-fix | Lint and auto-fix code |
+| webapp-test | Test web applications |
 
-### Auto-QA Hook
-After every dev agent completion:
-1. Check if tests exist and pass
-2. Run linter
-3. If visual component: flag for manual review
-4. Block commit if critical issues found
-
----
-
-## Memory System (3-Tier)
-
-### Hot Memory — Current session context
-```bash
-# Written to memory/hot/*.json
-# Used for: current workflow state, active decisions, agent context
-echo '{"key":"current-workflow","value":"greenfield-fullstack","updatedAt":1234}' > memory/hot/current-workflow.json
-```
-
-### Warm Memory — Recent learnings and patterns
-```bash
-# Appended to memory/warm/*.jsonl (JSON Lines)
-# Used for: patterns learned, decisions made, errors encountered
-echo '{"type":"learning","agent":"dev","lesson":"Always run tests before commit","timestamp":1234}' >> memory/warm/agent-dev.jsonl
-```
-
-### Cold Memory — Historical archive
-```bash
-# Archived from warm when session ends
-# Used for: historical reference, pattern analysis
-cp memory/warm/agent-dev.jsonl memory/cold/agent-dev-2026-02-15.jsonl
-```
-
-### Memory Folding (compress context)
-When an agent's warm memory grows too large:
-1. Extract key events (completions, errors)
-2. Extract patterns (learnings)
-3. Save compressed summary to hot
-4. Archive warm to cold
-
----
-
-## Context Handoff Protocol
+## Context Handoff
 
 Agents share context through files in `$PROJECT_DIR/.agdev/handoff/`:
 
 ```
 .agdev/handoff/
-├── current-task.md          # Current task (overwritten each step)
-├── workflow-state.json      # Tracks phase/step/iteration
+├── current-task.md          # Current task instructions
 ├── project-brief.md         # analyst output
 ├── prd.md                   # pm output
 ├── architecture.md          # architect output
-├── front-end-spec.md        # ux/architect output
-├── story-N.md               # sharded stories
+├── front-end-spec.md        # architect/ux output
+├── story-N.md               # current story
 ├── qa-review.md             # qa output
-├── dev-output.md            # dev summary
-├── validation-report.md     # po output
-└── CONTEXT.md               # Auto-generated project context
+└── workflow-state.json      # tracks current phase/step
 ```
 
-### Workflow State
-```json
-{
-  "workflow": "greenfield-fullstack",
-  "currentPhase": 3,
-  "currentStep": "architect",
-  "completedSteps": ["devops-bootstrap", "analyst-discovery", "pm-prd"],
-  "startedAt": "2026-02-15T03:00:00Z",
-  "qualityGates": {
-    "analyst-discovery": "PASS",
-    "pm-prd": "PASS"
-  }
-}
+## Workflow Execution Patterns
+
+### Pattern A: Sequential (most workflows)
+```
+analyst → pm → architect → po (validate) → dev → qa → dev (fix) → done
 ```
 
----
+### Pattern B: Parallel phases (brownfield-discovery)
+```bash
+tmux -S "$SOCKET" send-keys -t agent-architect "..." Enter
+tmux -S "$SOCKET" send-keys -t agent-analyst "..." Enter
+# Wait for both
+```
 
-## Agent Capabilities (SuperSkills)
-
-Each agent can leverage these built-in capabilities as part of their tasks:
-
-### Analyzers
-- **code-complexity** — Cyclomatic complexity, function counts, hotspots
-- **csv-summarizer** — Statistical summaries of CSV data
-- **dep-graph** — Dependency analysis (package.json, requirements.txt)
-- **git-stats** — Repository statistics, activity patterns, timelines
-- **security-scan** — Secrets detection, eval() usage, SQL injection, XSS patterns
-- **temporal-analysis** — Timeline data analysis with graph metrics
-
-### Builders
-- **docx-builder** — Generate Word documents
-- **pdf-builder** — Generate PDFs from markdown
-- **xlsx-builder** — Generate Excel spreadsheets
-- **static-site** — Convert markdown to static HTML site
-- **image-enhance** — ImageMagick operations (sharpen, resize, optimize)
-- **file-organize** — Organize files by type/date/size
-
-### Generators
-- **api-scaffold** — Express REST API scaffolding from entity definitions
-- **changelog-gen** — Changelogs from git history (conventional commits)
-- **dockerfile-gen** — Optimized multi-stage Dockerfiles
-- **readme-gen** — Auto-detect stack and generate README
-- **schema-to-types** — JSON Schema → TypeScript interfaces
-- **domain-brainstorm** — Creative domain name generation + DNS check
-
-### Transformers
-- **article-extractor** — Clean article extraction from HTML
-- **csv-to-json** — CSV → JSON with type inference
-- **html-to-md** — HTML → Markdown conversion
-- **invoice-parser** — Extract structured data from invoices
-- **json-to-form** — JSON Schema → HTML/React forms
-- **md-to-slides** — Markdown → HTML slideshow
-
-### Validators
-- **lint-fix** — ESLint/Prettier for JS/TS, pattern-based for Python
-- **webapp-test** — Basic web app functionality testing
-
-Tell agents about relevant capabilities in their task descriptions. For example, tell @dev to use `lint-fix` after implementation.
-
----
-
-## Squads (Pre-configured Teams)
-
-| Squad | Agents | Default Workflow | Use When |
-|-------|--------|-----------------|----------|
-| 🏗️ Full Stack Dev | analyst, architect, dev, qa | greenfield-fullstack | Building complete applications |
-| 🔧 Backend API | analyst, architect, dev | greenfield-service | Building APIs/services |
-| 🎨 Frontend UI | ux, dev, qa | greenfield-ui | Building UIs/frontends |
-| 🚀 DevOps Infra | devops, architect | - | Infrastructure setup |
-| ✍️ Content Marketing | content, seo | spec-pipeline | Content creation |
-
-Squad configs are in `squads/*.json`. You can create custom squads dynamically.
-
----
+### Pattern C: Loop (qa-loop)
+```
+qa reviews → if REJECT → dev fixes → qa reviews again → repeat until APPROVE
+```
 
 ## Cleanup
 
 ```bash
-bash scripts/cleanup.sh /tmp/agdev.sock
+bash {skillDir}/scripts/cleanup.sh "$SOCKET"
 ```
 
----
+## Tips
 
-## Tips & Lessons Learned
-
-### From the Retrospective (RSB project):
-1. **No fix is too small for the system** — Once you bypass the flow for "quick fixes", discipline collapses
-2. **The flow must be a straitjacket** — If the orchestrator CAN skip steps, they WILL skip them
-3. **Speed without quality is rework in disguise** — Invest in QA upfront
-4. **Without visual testing, QA is incomplete** — Reading CSS ≠ seeing the UI
-5. **Agents don't communicate** — Use the handoff protocol rigorously. Keep CONTEXT.md updated
-6. **Merge is the failure point** — Use file locking (one agent per file), avoid parallel edits on same file
-7. **Track everything** — Use workflow-state.json, memory system, and handoff files
-
-### For the Orchestrator (you):
-- Keep tasks focused — each Claude Code session has limited context
-- Use `--print` for non-interactive single-shot tasks
+- Each Claude Code session has its own context window — keep tasks focused
+- Agents run interactively in tmux for full Claude Code capabilities
+- For long tasks, poll for the prompt to return
 - If an agent gets stuck: `tmux -S "$SOCKET" send-keys -t agent-dev C-c`
-- Poll for completion by checking if shell prompt returns
-- All output goes to handoff/ so the next agent can read it
-- Record learnings to warm memory after each workflow
+- All agent output goes to the handoff directory for the next agent
