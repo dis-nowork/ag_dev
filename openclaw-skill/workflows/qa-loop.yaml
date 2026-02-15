@@ -1,0 +1,31 @@
+id: qa-loop
+name: QA Review Loop
+description: Iterative review → fix → re-review cycle until APPROVE or max iterations
+
+config:
+  maxIterations: 5
+
+phases:
+  - id: review
+    agent: qa
+    task: Review implementation. Verdict: APPROVE / REJECT / BLOCKED.
+    output: .agdev/handoff/qa-review.md
+
+  - id: check-verdict
+    action: |
+      If APPROVE → done
+      If BLOCKED → escalate to human
+      If REJECT → continue to fix
+
+  - id: fix
+    agent: dev
+    condition: verdict is REJECT
+    task: Apply fixes based on QA review.
+    input: .agdev/handoff/qa-review.md
+    output: code changes + .agdev/handoff/dev-output.md
+
+  - id: iterate
+    action: |
+      Increment iteration counter.
+      If counter >= maxIterations → escalate to human.
+      Else → go back to review.

@@ -1,0 +1,48 @@
+id: greenfield-ui
+name: Greenfield UI/Frontend
+description: Build a frontend application from concept to development
+
+phases:
+  - id: discovery
+    agent: analyst
+    task: Create project brief focused on UI/UX requirements.
+    output: .agdev/handoff/project-brief.md
+
+  - id: prd
+    agent: pm
+    task: Create PRD focused on UI features and user flows.
+    input: .agdev/handoff/project-brief.md
+    output: .agdev/handoff/prd.md
+
+  - id: ux-spec
+    agent: architect
+    task: Create front-end spec (user flows, components, design system).
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/front-end-spec.md
+
+  - id: architecture
+    agent: architect
+    task: Create frontend architecture (component tree, state management, routing).
+    input: .agdev/handoff/front-end-spec.md
+    output: .agdev/handoff/architecture.md
+
+  - id: validation
+    agent: po
+    task: Validate all artifacts.
+    input: all handoff files
+    output: .agdev/handoff/validation-report.md
+
+  - id: sharding
+    agent: po
+    task: Break PRD into dev-ready stories.
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/sharded-docs/
+
+  - id: dev-cycle
+    repeat: for each story
+    steps:
+      - agent: dev
+        task: Implement story with tests.
+      - agent: qa
+        optional: true
+        task: Review. APPROVE/REJECT.
