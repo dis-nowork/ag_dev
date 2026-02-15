@@ -1,33 +1,35 @@
 #!/usr/bin/env bash
 # Dispatch a task to an AG Dev agent via Claude Code CLI
-# Usage: dispatch-agent.sh <socket> <agent_name> <project_dir> <task_prompt> [--interactive]
+# Usage: dispatch-agent.sh <socket> <agent_name> <project_dir> <task_prompt> [--print]
 #
 # Modes:
-#   Default (--print): one-shot execution, agent outputs result and returns
-#   --interactive: launches interactive Claude Code session (agent can use tools, ask questions)
+#   Default (interactive): launches Claude Code with tool access (Read/Write/exec)
+#   --print: one-shot, NO tool access — only for pure text generation tasks
+#
+# ⚠️  IMPORTANT: --print mode CANNOT read/write files. Use interactive (default) for any
+#     task that requires reading code, writing files, or running commands.
 #
 # Example:
 #   dispatch-agent.sh /tmp/agdev.sock analyst /tmp/project "Create a project brief"
-#   dispatch-agent.sh /tmp/agdev.sock dev /tmp/project "Implement the auth module" --interactive
+#   dispatch-agent.sh /tmp/agdev.sock dev /tmp/project "Implement auth" 
+#   dispatch-agent.sh /tmp/agdev.sock pm /tmp/project "Write a summary" --print
 
 set -euo pipefail
 
-SOCKET="${1:?Usage: dispatch-agent.sh <socket> <agent> <project_dir> <task_prompt> [--interactive]}"
+SOCKET="${1:?Usage: dispatch-agent.sh <socket> <agent> <project_dir> <task_prompt> [--print]}"
 AGENT="${2:?}"
 PROJECT_DIR="${3:?}"
 TASK_PROMPT="${4:?}"
-MODE="${5:---print}"
+MODE="${5:-}"
 
 SESSION="agent-$AGENT"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CLAUDE_MD="$SKILL_DIR/agents/$AGENT/CLAUDE.md"
 HANDOFF_DIR="$PROJECT_DIR/.agdev/handoff"
 
-# Ensure handoff dir exists
 mkdir -p "$HANDOFF_DIR"
 
-# Write the task to handoff
-cat > "$HANDOFF_DIR/current-task.md" << TASK
+# Write task file for the agent
+cat > "$HANDOFF_DIR/current-task-$AGENT.md" << TASK
 # Task for: $AGENT
 $(date -u +"%Y-%m-%d %H:%M UTC")
 
@@ -36,30 +38,33 @@ $TASK_PROMPT
 ## Instructions
 - Read your persona from .agdev/CLAUDE-$AGENT.md
 - Read any input files referenced in the task
-- Save output to the path specified (or .agdev/handoff/$AGENT-output.md)
+- Save output to .agdev/handoff/$AGENT-output.md
 - Use conventional commits if modifying code
-- When done, write a summary to .agdev/handoff/$AGENT-output.md
+- When done, write DONE to the last line of your output file
 TASK
 
-# Build the prompt that includes persona context
-AGENT_PROMPT="Read your persona and behavioral rules from .agdev/CLAUDE-$AGENT.md first. Then read your task from .agdev/handoff/current-task.md. Execute the task following your persona's expertise and rules. Save all output to the handoff directory."
+# The prompt that tells the agent what to do
+AGENT_PROMPT="Read .agdev/CLAUDE-$AGENT.md for your persona. Then read .agdev/handoff/current-task-$AGENT.md and execute it. Save all output to .agdev/handoff/$AGENT-output.md. Write DONE as the last line when finished."
 
-if [[ "$MODE" == "--interactive" ]]; then
-  # Interactive mode: launch claude in the tmux session
+if [[ "$MODE" == "--print" ]]; then
+  # ⚠️  Print mode: NO tool access. Only for pure text generation.
+  echo "⚠️  Using --print mode (no file access). Use default mode for tasks needing Read/Write."
   tmux -S "$SOCKET" send-keys -t "$SESSION" \
-    "cd $PROJECT_DIR && claude" Enter
-  sleep 2
-  # Send the prompt to the interactive session
-  tmux -S "$SOCKET" send-keys -t "$SESSION" \
-    "$AGENT_PROMPT" Enter
-  echo "📤 Interactive session started for $SESSION"
+    "cd $PROJECT_DIR && claude --print '$AGENT_PROMPT' 2>&1 | tee .agdev/handoff/$AGENT-output.md && echo 'AGENT_DONE_$AGENT'" Enter
+  echo "📤 Task dispatched to $SESSION (--print, no tools)"
 else
-  # One-shot mode: use --print for quick tasks
+  # Interactive mode (DEFAULT): full tool access — Read, Write, exec, etc.
+  # Uses --verbose to show progress, pipes to tee for capture
+  # The -p flag auto-accepts tool use permissions
   tmux -S "$SOCKET" send-keys -t "$SESSION" \
-    "cd $PROJECT_DIR && claude --print \"$AGENT_PROMPT\" | tee .agdev/handoff/$AGENT-output.md" Enter
-  echo "📤 Task dispatched to $SESSION (--print mode)"
+    "cd $PROJECT_DIR && claude -p '$AGENT_PROMPT' 2>&1 | tee .agdev/handoff/$AGENT-output.md && echo 'AGENT_DONE_$AGENT'" Enter
+  echo "📤 Task dispatched to $SESSION (interactive, full tool access)"
 fi
 
-echo "📋 Task file: $HANDOFF_DIR/current-task.md"
-echo "📊 Monitor:   tmux -S $SOCKET capture-pane -p -J -t $SESSION -S -200"
-echo "🔍 Check done: tmux -S $SOCKET capture-pane -p -t $SESSION -S -5 | grep -q '\\$'"
+echo "📋 Task file: $HANDOFF_DIR/current-task-$AGENT.md"
+echo ""
+echo "Monitor:"
+echo "  Live:     tmux -S $SOCKET attach -t $SESSION"
+echo "  Capture:  tmux -S $SOCKET capture-pane -p -J -t $SESSION -S -200"
+echo "  Done?:    tmux -S $SOCKET capture-pane -p -t $SESSION -S -5 | grep -q 'AGENT_DONE_$AGENT'"
+echo "  Output:   cat $HANDOFF_DIR/$AGENT-output.md"

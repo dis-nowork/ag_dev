@@ -68,14 +68,20 @@ bash {skillDir}/scripts/setup-agents.sh "$SOCKET" "$PROJECT_DIR" analyst archite
 ### 4. Run agents in sequence
 
 ```bash
-# Dispatch a task to an agent (interactive Claude Code session)
+# Dispatch a task (default = interactive with full tool access: Read/Write/exec)
 bash {skillDir}/scripts/dispatch-agent.sh "$SOCKET" analyst "$PROJECT_DIR" "Analyze the codebase and create a project brief"
+
+# ⚠️  --print mode has NO tool access (can't read/write files). Only for pure text generation:
+bash {skillDir}/scripts/dispatch-agent.sh "$SOCKET" pm "$PROJECT_DIR" "Write a summary" --print
 
 # Monitor progress
 tmux -S "$SOCKET" capture-pane -p -J -t agent-analyst -S -200
 
-# Check if done (look for the $ prompt returning)
-tmux -S "$SOCKET" capture-pane -p -t agent-analyst -S -5 | grep -q '\\$'
+# Check if done (look for AGENT_DONE marker)
+tmux -S "$SOCKET" capture-pane -p -t agent-analyst -S -5 | grep -q 'AGENT_DONE_analyst'
+
+# Read output
+cat "$PROJECT_DIR/.agdev/handoff/analyst-output.md"
 ```
 
 ## All 12 Agents
