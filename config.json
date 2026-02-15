@@ -16,7 +16,7 @@
     "available": [
       "greenfield-fullstack", "greenfield-service", "greenfield-ui",
       "brownfield-fullstack", "brownfield-discovery",
-      "qa-loop", "spec-pipeline"
+      "qa-loop", "spec-pipeline", "code-review"
     ]
   },
   "squads": {

@@ -48,6 +48,7 @@ PROJECT_DIR="/path/to/project"
 | Audit existing codebase | `brownfield-discovery` |
 | QA review loop | `qa-loop` |
 | Requirements → spec | `spec-pipeline` |
+| Code review (multi-agent) | `code-review` |
 
 Read the workflow file in `{skillDir}/workflows/` for the full sequence.
 
@@ -88,10 +89,10 @@ tmux -S "$SOCKET" capture-pane -p -t agent-analyst -S -5 | grep -q '\\$'
 | devops | Gage | DevOps Engineer | CI/CD, infra, deploy, repo management |
 | pm | Morgan | Product Manager | PRD creation, product strategy, roadmaps |
 | po | Pax | Product Owner | Backlog, story refinement, acceptance |
-| content-writer | — | Content Writer | Copy, docs, blog posts, marketing materials |
+| content-writer | Sage | Content Writer | Copy, docs, blog posts, marketing, SNP-integrated |
 | data-engineer | Dara | Data Engineer | DB schemas, migrations, queries, RLS |
 | scrum-master | River | Scrum Master | Stories, epics, agile facilitation |
-| seo-analyst | — | SEO Analyst | SEO, web perf, digital marketing |
+| seo-analyst | Pixel | SEO Analyst | SEO audits, keyword research, growth engineering |
 | ux | Uma | UX/UI Designer | User research, design systems, components |
 
 ## Squads (Pre-configured Teams)
@@ -205,6 +206,33 @@ qa reviews → if REJECT → dev fixes → qa reviews again → repeat until APP
 ```bash
 bash {skillDir}/scripts/cleanup.sh "$SOCKET"
 ```
+
+## Quality Gates
+
+AG Dev enforces quality at every step:
+
+1. **PO Validation** — Before dev starts, PO validates all artifacts for consistency
+2. **QA Review** — After every dev implementation, QA reviews (APPROVE/REJECT cycle)
+3. **Code Review workflow** — Multi-agent review (architect + QA + security) for critical code
+4. **Max 5 QA iterations** — If QA rejects 5 times, escalate to human
+5. **DevOps is the ONLY agent that pushes** — No direct pushes from dev agents
+
+## SNP Integration (Synaptic Brain Engine)
+
+For content-related tasks, agents can activate the SNP skill to leverage 734+ professional micro-decisions:
+
+```bash
+# Search relevant synapses
+bash skills/snp/scripts/search.sh "topic" "content-formats"
+
+# Compile briefing
+bash skills/snp/scripts/compile.sh "content-formats" "task description" "context"
+
+# Evaluate output
+bash skills/snp/scripts/evaluate.sh "output text" "content-formats"
+```
+
+**Agents that should use SNP:** content-writer (Sage), seo-analyst (Pixel), and any agent producing user-facing content.
 
 ## Tips
 
