@@ -1,0 +1,26 @@
+{
+  "name": "ag_dev",
+  "version": "1.0.0",
+  "description": "Multi-agent software development platform. 12 specialized AI agents, 7 workflows, 5 squads, 31 SuperSkills — orchestrated via OpenClaw/Claude Code CLI + tmux.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dis-nowork/ag_dev.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dis-nowork/ag_dev/issues"
+  },
+  "homepage": "https://github.com/dis-nowork/ag_dev#readme",
+  "dependencies": {
+    "@tambo-ai/react": "^1.0.1"
+  }
+}
