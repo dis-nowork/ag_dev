@@ -1,39 +1,40 @@
 {
-  "_comment": "Environment variable overrides: AG_DEV_PORT, AG_DEV_HOST, AG_DEV_DATA_DIR",
-  "server": {
-    "port": 3456,
-    "host": "0.0.0.0"
-  },
-  "ui": {
-    "port": 5173,
-    "apiProxy": "http://localhost:3456"
-  },
-  "terminals": {
-    "maxCount": 16,
-    "bufferSize": 10000,
-    "defaultCols": 120,
-    "defaultRows": 40
+  "_comment": "AG Dev V3 — OpenClaw Edition. Configuration for tmux-based multi-agent orchestration.",
+  "tmux": {
+    "socket": "/tmp/agdev.sock",
+    "maxSessions": 16
   },
   "agents": {
-    "configPath": "./core/agents",
-    "workflowsPath": "./core/workflows"
+    "configPath": "./agents",
+    "available": [
+      "analyst", "architect", "dev", "qa", "devops", "pm", "po",
+      "ux", "data-engineer", "scrum-master", "content-writer", "seo-analyst"
+    ]
   },
-  "ralph": {
-    "maxIterations": 20,
-    "qualityCommands": [],
-    "timeoutPerTask": 300000
+  "workflows": {
+    "path": "./workflows",
+    "available": [
+      "greenfield-fullstack", "greenfield-service", "greenfield-ui",
+      "brownfield-fullstack", "brownfield-discovery",
+      "qa-loop", "spec-pipeline"
+    ]
+  },
+  "squads": {
+    "path": "./squads"
   },
   "memory": {
-    "baseDir": "./memory"
+    "baseDir": "./memory",
+    "tiers": ["hot", "warm", "cold"]
   },
-  "projectContext": {
-    "dir": "./project-context"
+  "qualityGates": {
+    "enforced": true,
+    "autoQA": true,
+    "checks": ["lint", "test", "security"]
   },
-  "data": {
-    "dir": "./data"
+  "qaLoop": {
+    "maxIterations": 5
   },
-  "gateway": {
-    "url": "ws://127.0.0.1:18789",
-    "token": null
+  "handoff": {
+    "dir": ".agdev/handoff"
   }
 }

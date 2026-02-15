@@ -1,8 +1,9 @@
 node_modules/
-ui-dist/
+.env
 *.log
-data/graph/*.json
-/tmp/
-superskills/*/output/
-server/state.json
 .DS_Store
+memory/hot/*.json
+memory/warm/*.jsonl
+memory/cold/*.jsonl
+.agdev/
+data/

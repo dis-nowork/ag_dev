@@ -1,123 +1,74 @@
-# SuperSkill Core Infrastructure
+# SuperSkills — Agent Capabilities Reference
 
-This directory contains the core SuperSkill system for the AG Dev project.
+SuperSkills are built-in capabilities that agents can use during their tasks. In V3 (OpenClaw), these are executed as CLI commands or scripts by agents, rather than through a runtime registry.
 
-## Architecture
+## Categories
 
-### Components Built:
+### 🔍 Analyzers
+| Skill | Description | Usage |
+|-------|-------------|-------|
+| code-complexity | Cyclomatic complexity, function counts, hotspots | Analyze code files for complexity metrics |
+| csv-summarizer | Statistical summaries of CSV data | Pass CSV file path for analysis |
+| dep-graph | Dependency analysis from package.json/requirements.txt | Run in project root |
+| git-stats | Repository statistics, activity patterns | Run in git repo |
+| security-scan | Secrets, eval(), SQL injection, XSS detection | Scan files/directories |
+| temporal-analysis | Timeline data analysis with graph metrics | Pass JSON timeline data |
 
-1. **manifest-schema.json** - JSON Schema for validating SuperSkill manifests
-2. **registry.js** - SuperSkillRegistry class for discovery, validation, and execution
-3. **runner.js** - CLI tool for managing and running SuperSkills
-4. **Server Integration** - API endpoints added to `../server/server.js`
+### 🏗️ Builders
+| Skill | Description |
+|-------|-------------|
+| docx-builder | Generate Word documents from structured data |
+| pdf-builder | Convert Markdown → HTML → PDF |
+| xlsx-builder | Generate Excel spreadsheets |
+| static-site | Markdown directory → static HTML site |
+| image-enhance | ImageMagick operations (sharpen, resize, optimize) |
+| file-organize | Organize files by type/date/size |
 
-### Directory Structure:
+### ⚡ Generators
+| Skill | Description |
+|-------|-------------|
+| api-scaffold | Express REST API scaffolding from entity definitions |
+| changelog-gen | Changelogs from conventional git commits |
+| dockerfile-gen | Multi-stage Dockerfiles for node/python/ruby |
+| readme-gen | Auto-detect stack and generate README |
+| schema-to-types | JSON Schema → TypeScript interfaces |
+| domain-brainstorm | Domain name generation + DNS availability |
 
-```
-superskills/
-├── manifest-schema.json       # JSON Schema validation
-├── registry.js               # Core registry class
-├── runner.js                 # CLI interface
-├── generators/              # Code/content generation SuperSkills
-├── transformers/           # Data/format transformation SuperSkills  
-├── analyzers/              # Analysis and metrics SuperSkills
-├── connectors/             # API/service integration SuperSkills
-├── builders/               # Document/file builders SuperSkills
-└── validators/             # Validation and testing SuperSkills
-```
+### 🔄 Transformers
+| Skill | Description |
+|-------|-------------|
+| article-extractor | Clean article extraction from HTML/URLs |
+| csv-to-json | CSV → JSON with smart type inference |
+| html-to-md | HTML → Markdown conversion |
+| invoice-parser | Extract structured data from PDF/image invoices |
+| json-to-form | JSON Schema → HTML/React form components |
+| md-to-slides | Markdown → HTML slideshow with transitions |
 
-## Usage
+### ✅ Validators
+| Skill | Description |
+|-------|-------------|
+| lint-fix | ESLint/Prettier for JS/TS, pattern-based for Python |
+| webapp-test | Basic web app functionality testing |
 
-### CLI Commands:
+### 🔌 Connectors
+| Skill | Description |
+|-------|-------------|
+| postgres-query | Read-only PostgreSQL queries via psql |
+| reddit-fetch | Fetch Reddit posts via JSON API |
+| video-download | Download videos via yt-dlp |
+| webhook-fire | Fire HTTP webhooks (GET/POST/PUT) |
 
-```bash
-# List all SuperSkills
-node runner.js list
+## How Agents Use SuperSkills
 
-# Search SuperSkills
-node runner.js search "api rest"
+In V3, agents execute these as part of their Claude Code session. The orchestrator should mention relevant capabilities in the task description:
 
-# Get SuperSkill details
-node runner.js info <name>
+```markdown
+# Task: Review code quality
 
-# Execute SuperSkill
-node runner.js run <name> --input data.json
-
-# Show registry statistics
-node runner.js stats
-
-# Validate manifest
-node runner.js validate path/to/manifest.json
-```
-
-### API Endpoints:
-
-```
-GET  /api/superskills           → List all SuperSkills
-GET  /api/superskills/search?q= → Search SuperSkills  
-GET  /api/superskills/:name     → Get specific SuperSkill
-POST /api/superskills/:name/run → Execute SuperSkill
-GET  /api/superskills/stats     → Registry statistics
-```
-
-### Programmatic Usage:
-
-```javascript
-const SuperSkillRegistry = require('./registry');
-
-const registry = new SuperSkillRegistry(__dirname);
-registry.loadAll();
-
-// Get stats
-console.log(registry.getStats());
-
-// Search
-const results = registry.search('api', ['rest', 'json']);
-
-// Execute
-const result = await registry.run('my-skill', { input: 'data' });
+## Available Tools
+- Run `node superskills/analyzers/code-complexity/run.js --path ./src` for complexity analysis
+- Run `node superskills/validators/lint-fix/run.js --path ./src` for linting
+- Run `node superskills/analyzers/security-scan/run.js --path ./src` for security scan
 ```
 
-## SuperSkill Manifest Structure:
-
-```json
-{
-  "name": "my-superskill",
-  "version": "1.0.0", 
-  "category": "generator|transformer|analyzer|connector|builder|validator",
-  "description": "What this SuperSkill does",
-  "input": {
-    "type": "json|text|file|url|stream",
-    "schema": { "type": "object", "properties": {...} },
-    "required": ["field1", "field2"],
-    "example": { "field1": "value" }
-  },
-  "output": {
-    "type": "json|text|file|stream",
-    "structure": { "type": "object", "properties": {...} },
-    "format": "Description of output format"
-  },
-  "tokenSavings": "Description of token savings",
-  "tags": ["tag1", "tag2"],
-  "requires": ["node", "python", "curl"],
-  "run": "node script.js",
-  "timeout": 60
-}
-```
-
-## Features:
-
-✅ **Discovery**: Automatically finds all `manifest.json` files in category directories
-✅ **Validation**: Validates manifests against JSON Schema  
-✅ **Search**: Fuzzy search by name, description, tags with relevance scoring
-✅ **Execution**: Runs SuperSkills with timeout handling and input validation
-✅ **CLI Interface**: Full-featured command-line tool with colors and JSON output
-✅ **API Integration**: RESTful endpoints integrated into AG Dev server
-✅ **Error Handling**: Comprehensive error handling with helpful messages
-✅ **Statistics**: Registry stats and token savings tracking
-
-## Testing:
-
-The system was tested with existing SuperSkills and a new test SuperSkill (`text-upper`) that transforms text to uppercase. All functionality works as expected.
-
-Current registry contains **14 SuperSkills** across **5 categories**.
+The original SuperSkill runners (run.js files) are preserved in this directory and can be executed directly by agents.
