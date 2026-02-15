@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { 
   Pause, Square, Play, Clock, CheckCircle2, XCircle, AlertCircle, Timer,
   BarChart3, Kanban, List, ArrowRight, ChevronDown, ChevronRight, 
-  Users, Zap, Activity, TrendingUp, LayoutGrid, Eye
+  Users, Zap, Activity, TrendingUp, LayoutGrid, Eye, X, Terminal
 } from 'lucide-react'
 import { useStore, WorkflowStep } from '../store'
 import { getAgentMeta } from '../lib/theme'
@@ -13,6 +13,8 @@ export function WorkflowView() {
   const { workflowState, setWorkflowState, setView } = useStore()
   const [currentTime, setCurrentTime] = useState(Date.now())
   const [viewMode, setViewMode] = useState<ViewMode>('board')
+  const [selectedStep, setSelectedStep] = useState<number | null>(null)
+  const [stepOutput, setStepOutput] = useState<string[]>([])
 
   // Update current time every second for working steps
   useEffect(() => {
@@ -21,6 +23,29 @@ export function WorkflowView() {
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch terminal buffer when a step is selected
+  useEffect(() => {
+    if (selectedStep === null) return
+    const step = workflowState?.steps[selectedStep]
+    if (!step?.terminalId) return
+    
+    // Fetch terminal buffer
+    fetch(`/api/terminals/${step.terminalId}/buffer?lines=50`)
+      .then(r => r.json())
+      .then(data => setStepOutput(data.buffer || []))
+      .catch(() => {})
+    
+    // Poll every 3 seconds for live updates
+    const interval = setInterval(() => {
+      fetch(`/api/terminals/${step.terminalId}/buffer?lines=50`)
+        .then(r => r.json())
+        .then(data => setStepOutput(data.buffer || []))
+        .catch(() => {})
+    }, 3000)
+    
+    return () => clearInterval(interval)
+  }, [selectedStep, workflowState])
 
   // Fetch active workflow on mount
   useEffect(() => {
@@ -155,6 +180,111 @@ export function WorkflowView() {
     }
   }
 
+  // Step Detail Panel Component
+  function StepDetailPanel({ step, stepIndex, output, onClose }: {
+    step: WorkflowStep
+    stepIndex: number
+    output: string[]
+    onClose: () => void
+  }) {
+    const agent = getAgentForStep(step)
+    
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="glass-card max-w-4xl w-full max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-bg-border">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{agent.icon}</span>
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary">{agent.name}</h2>
+                <p className="text-sm text-text-muted">{agent.role}</p>
+              </div>
+              <div className={`px-3 py-1 rounded text-sm ${
+                step.status === 'working' ? 'bg-accent-primary/20 text-accent-primary' :
+                step.status === 'done' ? 'bg-accent-success/20 text-accent-success' :
+                step.status === 'error' ? 'bg-accent-error/20 text-accent-error' :
+                'bg-bg-border text-text-muted'
+              }`}>
+                {step.status}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-bg-card rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 p-6 overflow-hidden flex flex-col gap-4">
+            {/* Task Description */}
+            {step.task && (
+              <div>
+                <h3 className="font-medium text-text-primary mb-2">Task</h3>
+                <p className="text-text-secondary text-sm bg-bg-card p-3 rounded-lg">
+                  {step.task}
+                </p>
+              </div>
+            )}
+
+            {/* Timing */}
+            <div className="grid grid-cols-2 gap-4">
+              {step.startTime && (
+                <div>
+                  <h4 className="font-medium text-text-primary mb-1">Started</h4>
+                  <p className="text-text-secondary text-sm">
+                    {new Date(step.startTime).toLocaleString()}
+                  </p>
+                </div>
+              )}
+              {getStepTiming(step) && (
+                <div>
+                  <h4 className="font-medium text-text-primary mb-1">Duration</h4>
+                  <p className="text-text-secondary text-sm">
+                    {getStepTiming(step)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Terminal Output */}
+            <div className="flex-1 flex flex-col">
+              <div className="flex items-center gap-2 mb-2">
+                <Terminal size={16} />
+                <h3 className="font-medium text-text-primary">Terminal Output</h3>
+              </div>
+              <div className="flex-1 bg-black/50 rounded-lg p-4 overflow-auto font-mono text-sm text-gray-200 max-h-96">
+                {!step.terminalId ? (
+                  <div className="text-text-muted">Agent not started</div>
+                ) : output.length === 0 ? (
+                  <div className="text-text-muted">No output yet</div>
+                ) : (
+                  <div className="space-y-1">
+                    {output.map((line, i) => (
+                      <div key={i} className="whitespace-pre-wrap">{line}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Error */}
+            {step.error && (
+              <div>
+                <h3 className="font-medium text-accent-error mb-2">Error</h3>
+                <div className="bg-accent-error/10 border border-accent-error/20 p-3 rounded-lg text-sm text-accent-error">
+                  {step.error}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Calculate metrics
   const totalSteps = workflowState.steps.length
   const doneSteps = workflowState.steps.filter(s => s.status === 'done').length
@@ -210,10 +340,15 @@ export function WorkflowView() {
             </div>
             
             <div className="space-y-3">
-              {column.steps.map((step) => {
+              {column.steps.map((step, stepIndex) => {
                 const agent = getAgentForStep(step)
+                const globalStepIndex = workflowState.steps.findIndex(s => s.id === step.id)
                 return (
-                  <div key={step.id} className="glass-card p-3">
+                  <div 
+                    key={step.id} 
+                    className="glass-card p-3 cursor-pointer hover:scale-[1.02] transition-transform"
+                    onClick={() => setSelectedStep(globalStepIndex)}
+                  >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-lg">{agent.icon}</span>
                       <div className="flex-1 min-w-0">
@@ -224,6 +359,7 @@ export function WorkflowView() {
                           {agent.role}
                         </div>
                       </div>
+                      <ChevronRight size={14} className="text-text-muted" />
                     </div>
                     
                     {step.task && (
@@ -272,61 +408,83 @@ export function WorkflowView() {
   }
 
   const renderTimelineView = () => {
+    // Calculate average step duration for progress estimation
+    const completedSteps = workflowState.steps.filter(s => s.status === 'done' && s.duration)
+    const avgDuration = completedSteps.length > 0 
+      ? completedSteps.reduce((sum, s) => sum + (s.duration || 0), 0) / completedSteps.length 
+      : 30000 // 30 seconds default
+      
     return (
-      <div className="space-y-1">
+      <div className="space-y-2">
         {workflowState.steps.map((step, index) => {
           const agent = getAgentForStep(step)
-          const isLast = index === workflowState.steps.length - 1
+          
+          // Calculate progress for working steps
+          let progressPercent = 0
+          if (step.status === 'working' && step.startTime) {
+            const elapsed = currentTime - step.startTime
+            progressPercent = Math.min((elapsed / avgDuration) * 100, 95)
+          }
+          
+          const getStatusIcon = () => {
+            switch (step.status) {
+              case 'done': return '✅'
+              case 'working': return '⏳'
+              case 'error': return '❌'
+              default: return '⚪'
+            }
+          }
           
           return (
-            <div key={step.id} className="flex items-center gap-4 p-3 hover:bg-bg-card rounded-lg transition-colors">
-              {/* Timeline Line */}
-              <div className="flex flex-col items-center">
-                <div className={`w-3 h-3 rounded-full border-2 ${
-                  step.status === 'done' ? 'bg-accent-success border-accent-success' :
-                  step.status === 'working' ? 'bg-accent-primary border-accent-primary animate-pulse' :
-                  step.status === 'error' ? 'bg-accent-error border-accent-error' :
-                  'bg-bg-border border-bg-border'
-                }`} />
-                {!isLast && (
-                  <div className={`w-px h-8 ${
-                    step.status === 'done' ? 'bg-accent-success' :
-                    step.status === 'working' ? 'bg-accent-primary' :
-                    'bg-bg-border opacity-50'
-                  }`} />
-                )}
-              </div>
+            <div 
+              key={step.id} 
+              className="flex items-center gap-3 p-3 hover:bg-bg-card rounded-lg transition-colors cursor-pointer group"
+              onClick={() => setSelectedStep(index)}
+            >
+              {/* Checklist Status */}
+              <div className="text-lg">{getStatusIcon()}</div>
               
               {/* Content */}
-              <div className="flex-1 flex items-center gap-4">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-lg">{agent.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-text-primary">{agent.name}</div>
-                    {step.task && (
-                      <div className="text-sm text-text-secondary truncate">{step.task}</div>
-                    )}
-                  </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">{agent.icon}</span>
+                  <span className="font-medium text-text-primary">
+                    {agent.name}
+                  </span>
+                  <span className="text-text-muted">—</span>
+                  <span className="text-sm text-text-secondary truncate flex-1">
+                    {step.task || `${agent.role} task`}
+                  </span>
                 </div>
                 
-                <div className="flex items-center gap-4 text-sm text-text-muted">
-                  {getStepTiming(step) && (
-                    <div className="flex items-center gap-1">
-                      <Timer size={12} />
-                      {getStepTiming(step)}
+                <div className="flex items-center gap-4 text-xs text-text-muted">
+                  <div className="flex items-center gap-1">
+                    Duration: {getStepTiming(step) || '--'}
+                  </div>
+                  
+                  {step.status === 'working' && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-bg-card rounded-full h-2 w-20 relative overflow-hidden">
+                        <div 
+                          className="bg-accent-primary h-full transition-all duration-1000 rounded-full animate-pulse"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      <span>{Math.round(progressPercent)}%</span>
                     </div>
                   )}
                   
-                  <div className={`px-2 py-1 rounded text-xs ${
-                    step.status === 'working' ? 'bg-accent-primary/20 text-accent-primary' :
-                    step.status === 'done' ? 'bg-accent-success/20 text-accent-success' :
-                    step.status === 'error' ? 'bg-accent-error/20 text-accent-error' :
-                    'bg-bg-border text-text-muted'
-                  }`}>
-                    {step.status}
-                  </div>
+                  {step.status === 'done' && step.duration && (
+                    <div className="flex items-center gap-2">
+                      <div className="bg-accent-success rounded-full h-2 w-20"></div>
+                      <span>100%</span>
+                    </div>
+                  )}
                 </div>
               </div>
+              
+              {/* Click indicator */}
+              <ChevronRight size={14} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           )
         })}
@@ -585,6 +743,16 @@ export function WorkflowView() {
         {viewMode === 'timeline' && renderTimelineView()}
         {viewMode === 'stats' && renderStatsView()}
       </div>
+      
+      {/* Step Detail Panel */}
+      {selectedStep !== null && workflowState?.steps[selectedStep] && (
+        <StepDetailPanel
+          step={workflowState.steps[selectedStep]}
+          stepIndex={selectedStep}
+          output={stepOutput}
+          onClose={() => { setSelectedStep(null); setStepOutput([]); }}
+        />
+      )}
     </div>
   )
 }

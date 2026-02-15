@@ -77,10 +77,19 @@ export function useSSE() {
                 active: true,
                 name: wfData.name,
                 currentStep: wfData.steps[wfData.currentStep]?.agent || '',
+                startTime: wfData.startTime,
+                totalDuration: wfData.totalDuration,
                 steps: wfData.steps.map((s: any, i: number) => ({
                   id: `step-${i}`,
                   agent: s.agent || s.name,
-                  status: i < wfData.currentStep ? 'done' : i === wfData.currentStep ? 'working' : 'waiting'
+                  task: s.task || '',
+                  status: i < wfData.currentStep ? 'done' : i === wfData.currentStep ? 'working' : 'pending',
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                  duration: s.duration,
+                  phase: s.phase,
+                  error: s.error,
+                  terminalId: s.terminalId
                 }))
               })
             }
