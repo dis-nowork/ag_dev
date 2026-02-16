@@ -7,3 +7,5 @@ memory/warm/*.jsonl
 memory/cold/*.jsonl
 .agdev/
 data/
+*__pycache__*
+*.egg-info
