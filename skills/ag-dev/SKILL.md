@@ -241,6 +241,23 @@ These workspace skills enhance AG Dev agents when their domain applies:
 
 **How to use:** Read the skill's SKILL.md before dispatching the relevant agent. Inject key principles into the agent's task prompt.
 
+## Generative UI (json-render)
+
+AG Dev includes a json-render catalog (`libs/json-render/catalog.js`) for AI-generated UIs:
+
+**12 Components:** Card, Metric, Table, StatusBadge, ProgressBar, Button, Alert, CodeBlock, AgentCard, TaskCard, Timeline
+
+**5 Actions:** dispatch_task, cancel_task, view_output, refresh_status, export_report
+
+**Usage:** The UX agent (Uma) can generate json-render specs from prompts. The orchestrator can use it to create dynamic dispatch dashboards. All components are schema-validated with Zod.
+
+```javascript
+import { catalog } from './libs/json-render/catalog.js';
+// AI generates JSON spec constrained to catalog → Renderer renders it
+```
+
+**Packages:** `@json-render/core`, `@json-render/react` (also supports React Native and Remotion for video)
+
 ## SNP Integration (Synaptic Brain Engine)
 
 For content-related tasks, agents can activate the SNP skill to leverage 734+ professional micro-decisions:
