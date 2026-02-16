@@ -1,0 +1,93 @@
+{
+  "workers": {
+    "lint-fix": {
+      "script": "lint-fix.sh",
+      "triggers": [
+        "lint",
+        "eslint",
+        "fix lint",
+        "lint fix",
+        "linting"
+      ],
+      "description": "Detect linter config, run auto-fix, report results"
+    },
+    "test-runner": {
+      "script": "test-runner.sh",
+      "triggers": [
+        "test",
+        "run tests",
+        "vitest",
+        "jest",
+        "pytest",
+        "cargo test"
+      ],
+      "description": "Detect test framework, run tests, capture output and coverage"
+    },
+    "build-check": {
+      "script": "build-check.sh",
+      "triggers": [
+        "build",
+        "compile",
+        "type-check",
+        "tsc",
+        "typecheck"
+      ],
+      "description": "Detect build tool, run build, report errors"
+    },
+    "git-ops": {
+      "script": "git-ops.sh",
+      "triggers": [
+        "commit",
+        "push",
+        "branch",
+        "merge",
+        "cherry-pick",
+        "git"
+      ],
+      "description": "Git operations: branch, commit, push, merge"
+    },
+    "dep-install": {
+      "script": "dep-install.sh",
+      "triggers": [
+        "install",
+        "npm install",
+        "pnpm install",
+        "pip install",
+        "add dep",
+        "add dependency"
+      ],
+      "description": "Detect package manager, install dependencies, report"
+    },
+    "file-scaffold": {
+      "script": "file-scaffold.sh",
+      "triggers": [
+        "scaffold",
+        "generate",
+        "boilerplate",
+        "template",
+        "init"
+      ],
+      "description": "Create file structure from templates"
+    },
+    "format-code": {
+      "script": "format-code.sh",
+      "triggers": [
+        "format",
+        "prettier",
+        "beautify",
+        "fmt",
+        "black"
+      ],
+      "description": "Detect formatter, run format, report changes"
+    },
+    "image-optimize": {
+      "script": "image-optimize.sh",
+      "triggers": [
+        "image",
+        "optimize"
+      ],
+      "description": "Optimize images in project (compress, resize, convert)",
+      "stub": true
+    }
+  }
+}
