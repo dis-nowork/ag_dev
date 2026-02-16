@@ -2,17 +2,12 @@
 # Dispatch a task to an AG Dev agent via Claude Code CLI
 # Usage: dispatch-agent.sh <socket> <agent_name> <project_dir> <task_prompt> [--print]
 #
-# Modes:
-#   Default (interactive): launches Claude Code with tool access (Read/Write/exec)
-#   --print: one-shot, NO tool access — only for pure text generation tasks
-#
-# ⚠️  IMPORTANT: --print mode CANNOT read/write files. Use interactive (default) for any
-#     task that requires reading code, writing files, or running commands.
-#
-# Example:
-#   dispatch-agent.sh /tmp/agdev.sock analyst /tmp/project "Create a project brief"
-#   dispatch-agent.sh /tmp/agdev.sock dev /tmp/project "Implement auth" 
-#   dispatch-agent.sh /tmp/agdev.sock pm /tmp/project "Write a summary" --print
+# FIXES (2026-02-16):
+#   - Prompt passed via TEMP FILE (never shell expansion)
+#   - PTY via script -qec wrapper
+#   - --dangerously-skip-permissions for headless operation
+#   - --allowedTools for explicit tool access
+#   - Output captured via tee with flush
 
 set -euo pipefail
 
@@ -36,31 +31,35 @@ $(date -u +"%Y-%m-%d %H:%M UTC")
 $TASK_PROMPT
 
 ## Instructions
-- Read your persona from .agdev/CLAUDE-$AGENT.md
+- Read your persona from .agdev/CLAUDE-$AGENT.md if it exists
 - Read any input files referenced in the task
 - Save output to .agdev/handoff/$AGENT-output.md
 - Use conventional commits if modifying code
 - When done, write DONE to the last line of your output file
 TASK
 
-# The prompt that tells the agent what to do
-AGENT_PROMPT="Read .agdev/CLAUDE-$AGENT.md for your persona. Then read .agdev/handoff/current-task-$AGENT.md and execute it. Save all output to .agdev/handoff/$AGENT-output.md. Write DONE as the last line when finished."
+# Write the PROMPT to a temp file (NEVER pass large prompts via shell expansion)
+PROMPT_FILE=$(mktemp /tmp/agdev-prompt-$AGENT-XXXXX.txt)
+cat > "$PROMPT_FILE" << 'PROMPTEOF'
+Read .agdev/CLAUDE-$AGENT.md for your persona if it exists. Then read .agdev/handoff/current-task-$AGENT.md and execute it fully. Save all output to .agdev/handoff/$AGENT-output.md. Write DONE as the last line when finished.
+PROMPTEOF
+# Replace $AGENT in the prompt file
+sed -i "s/\$AGENT/$AGENT/g" "$PROMPT_FILE"
 
+# Build the Claude CLI command — reads prompt from file via stdin
 if [[ "$MODE" == "--print" ]]; then
-  # ⚠️  Print mode: NO tool access. Only for pure text generation.
-  echo "⚠️  Using --print mode (no file access). Use default mode for tasks needing Read/Write."
-  tmux -S "$SOCKET" send-keys -t "$SESSION" \
-    "cd $PROJECT_DIR && claude --print '$AGENT_PROMPT' 2>&1 | tee .agdev/handoff/$AGENT-output.md && echo 'AGENT_DONE_$AGENT'" Enter
-  echo "📤 Task dispatched to $SESSION (--print, no tools)"
+  # Print mode: NO tool access, text-only output
+  CLAUDE_CMD="cd $PROJECT_DIR && cat $PROMPT_FILE | script -qec 'claude --print -p -' /dev/null 2>&1 | tee .agdev/handoff/$AGENT-output.md && echo 'AGENT_DONE_$AGENT'"
 else
-  # Interactive mode (DEFAULT): full tool access — Read, Write, exec, etc.
-  # Uses --verbose to show progress, pipes to tee for capture
-  # The -p flag auto-accepts tool use permissions
-  tmux -S "$SOCKET" send-keys -t "$SESSION" \
-    "cd $PROJECT_DIR && claude -p '$AGENT_PROMPT' 2>&1 | tee .agdev/handoff/$AGENT-output.md && echo 'AGENT_DONE_$AGENT'" Enter
-  echo "📤 Task dispatched to $SESSION (interactive, full tool access)"
+  # Interactive mode (DEFAULT): full tool access via --dangerously-skip-permissions
+  # Prompt via stdin pipe to avoid shell expansion issues
+  CLAUDE_CMD="cd $PROJECT_DIR && cat $PROMPT_FILE | script -qec 'claude --dangerously-skip-permissions -p - --allowedTools '\"'\"'Bash(*)'\"'\"' '\"'\"'Read(*)'\"'\"' '\"'\"'Write(*)'\"'\"' '\"'\"'Edit(*)'\"'\"'' /dev/null 2>&1 | tee .agdev/handoff/$AGENT-output.md && rm -f $PROMPT_FILE && echo 'AGENT_DONE_$AGENT'"
 fi
 
+# Send to tmux session
+tmux -S "$SOCKET" send-keys -t "$SESSION" "$CLAUDE_CMD" Enter
+
+echo "📤 Task dispatched to $SESSION (prompt via file: $PROMPT_FILE)"
 echo "📋 Task file: $HANDOFF_DIR/current-task-$AGENT.md"
 echo ""
 echo "Monitor:"
