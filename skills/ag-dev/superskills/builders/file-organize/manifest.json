@@ -1,0 +1,66 @@
+{
+  "name": "file-organize",
+  "version": "1.0.0",
+  "category": "builder",
+  "description": "Organizes files in a directory by moving them into subdirectories based on file type, date, size, or extension. Supports dry-run mode to preview changes without making them.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Directory path to organize"
+        },
+        "rules": {
+          "type": "string",
+          "enum": ["type", "date", "size", "extension"],
+          "description": "Organization rule to apply"
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "If true, only report what would happen without making changes"
+        }
+      },
+      "required": ["directory"]
+    },
+    "required": ["directory"],
+    "example": {
+      "directory": "/tmp/messy-files",
+      "rules": "type",
+      "dryRun": false
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "moved": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" }
+            }
+          },
+          "description": "List of file moves performed or planned"
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "totalFiles": { "type": "number" },
+            "categories": { "type": "object" }
+          },
+          "description": "Summary of organization results"
+        }
+      }
+    }
+  },
+  "tokenSavings": "Organizes files without needing 100+ tokens describing file organization strategies",
+  "tags": ["files", "organize", "directory", "cleanup", "sort"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 60
+}

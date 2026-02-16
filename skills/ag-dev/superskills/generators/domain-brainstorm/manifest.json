@@ -1,0 +1,48 @@
+{
+  "name": "domain-brainstorm",
+  "version": "1.0.0",
+  "category": "generator",
+  "description": "Generates creative domain names using various patterns (prefix+keyword, portmanteau, abbreviation, rhyming) and checks availability via DNS lookup.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "concept": {
+          "type": "string",
+          "description": "Main concept or idea for domain generation"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of related keywords"
+        },
+        "tlds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Top-level domains to check",
+          "default": ["com", "io", "dev", "app"]
+        }
+      },
+      "required": ["concept", "keywords"]
+    },
+    "example": {
+      "concept": "analytics platform",
+      "keywords": ["data", "insights", "metrics", "dashboard"],
+      "tlds": ["com", "io", "dev"]
+    }
+  },
+  "output": {
+    "type": "json",
+    "format": "{ domains: [{name, tld, available, creative_method}], total }"
+  },
+  "tokenSavings": "Saves 400-1000 tokens by generating and checking domain availability instead of manual brainstorming",
+  "tags": ["domains", "naming", "branding", "DNS", "creativity"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 60
+}

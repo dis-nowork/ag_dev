@@ -1,0 +1,51 @@
+{
+  "name": "temporal-analysis",
+  "description": "Analyzes any JSON timeline data using temporal graph metrics",
+  "version": "1.0.0",
+  "tags": ["analysis", "temporal", "timeline", "metrics", "graph"],
+  "input": {
+    "type": "object",
+    "properties": {
+      "events": {
+        "type": "array",
+        "description": "Array of timeline events",
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string", "description": "Source node/agent ID" },
+            "to": { "type": "string", "description": "Target node/agent ID" },
+            "timestamp": { "type": "number", "description": "Event timestamp in milliseconds" },
+            "type": { "type": "string", "description": "Event type" },
+            "data": { "type": "object", "description": "Additional event data" }
+          },
+          "required": ["from", "timestamp", "type"]
+        }
+      },
+      "window": {
+        "type": "object",
+        "description": "Optional time window for analysis",
+        "properties": {
+          "t0": { "type": "number", "description": "Start time in milliseconds" },
+          "t1": { "type": "number", "description": "End time in milliseconds" }
+        }
+      }
+    },
+    "required": ["events"]
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "intensity": { "type": "number", "description": "Events per minute" },
+      "rhythm": { "type": "number", "description": "Average time between events" },
+      "velocity": { "type": "number", "description": "Rate of interactions per unit time" },
+      "changeRate": { "type": "number", "description": "Rate of change in activity" },
+      "bursts": { "type": "array", "description": "Detected activity bursts" },
+      "patterns": { "type": "object", "description": "Temporal patterns detected" },
+      "hotNodes": { "type": "array", "description": "Most active nodes" },
+      "summary": { "type": "string", "description": "Human-readable summary" }
+    }
+  },
+  "category": "analyzers",
+  "author": "AG Dev Temporal Graph System",
+  "documentation": "Converts timeline events into a temporal graph and analyzes temporal patterns, intensity, rhythm, velocity, and other metrics. Returns comprehensive analysis including activity bursts, patterns, and hot nodes."
+}

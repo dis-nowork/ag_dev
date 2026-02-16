@@ -1,0 +1,64 @@
+{
+  "name": "webapp-test",
+  "version": "1.0.0",
+  "category": "validator",
+  "description": "Tests web applications for basic functionality including responsiveness, links, performance, and accessibility. Performs lightweight validation without requiring Playwright or heavy browser automation.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL of the web application to test"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["responsive", "links", "performance", "a11y"]
+          },
+          "description": "Types of checks to perform"
+        }
+      },
+      "required": ["url"]
+    },
+    "required": ["url"],
+    "example": {
+      "url": "https://example.com",
+      "checks": ["responsive", "links", "performance"]
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "check": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "details": { "type": "string" }
+            }
+          }
+        },
+        "score": {
+          "type": "number",
+          "description": "Overall score out of 100"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Summary of test results"
+        }
+      }
+    }
+  },
+  "tokenSavings": "Performs web app testing without needing 400+ tokens of testing framework setup",
+  "tags": ["webapp", "test", "validation", "links", "performance"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 120
+}

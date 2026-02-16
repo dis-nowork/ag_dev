@@ -1,0 +1,40 @@
+{
+  "name": "text-upper",
+  "version": "1.0.0",
+  "category": "transformer",
+  "description": "Simple text transformer that converts input text to uppercase",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Text to convert to uppercase"
+        }
+      },
+      "required": ["text"]
+    },
+    "required": ["text"],
+    "example": {
+      "text": "hello world"
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string"
+        }
+      }
+    },
+    "format": "JSON object with uppercased text"
+  },
+  "tokenSavings": "Saves minimal tokens, mainly for testing",
+  "tags": ["text", "transform", "test", "uppercase"],
+  "requires": ["node"],
+  "run": "node transform.js",
+  "timeout": 10
+}

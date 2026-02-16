@@ -1,0 +1,55 @@
+{
+  "name": "static-site",
+  "version": "1.0.0",
+  "category": "builder",
+  "description": "Converts a directory of markdown files into a complete static HTML site with navigation, responsive themes, and SEO optimization.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "sourceDir": {
+          "type": "string",
+          "description": "Directory containing .md files to convert"
+        },
+        "title": {
+          "type": "string",
+          "description": "Site title",
+          "default": "Static Site"
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["minimal", "docs", "blog"],
+          "description": "Site theme",
+          "default": "minimal"
+        },
+        "description": {
+          "type": "string",
+          "description": "Site description for SEO",
+          "default": ""
+        },
+        "author": {
+          "type": "string",
+          "description": "Site author",
+          "default": ""
+        }
+      },
+      "required": ["sourceDir"]
+    },
+    "example": {
+      "sourceDir": "/path/to/markdown/files",
+      "title": "My Documentation",
+      "theme": "docs",
+      "description": "Comprehensive project documentation"
+    }
+  },
+  "output": {
+    "type": "json",
+    "format": "{ outputDir, pages: [{title, path}], totalPages }"
+  },
+  "tokenSavings": "Saves 1000-2500 tokens by generating complete static site instead of manual HTML creation",
+  "tags": ["static-site", "markdown", "documentation", "html", "generator"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 120
+}

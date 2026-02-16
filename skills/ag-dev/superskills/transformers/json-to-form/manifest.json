@@ -1,0 +1,51 @@
+{
+  "name": "json-to-form",
+  "version": "1.0.0",
+  "category": "transformer",
+  "description": "Generates HTML or React form components from JSON Schema with support for various input types (text, number, email, select, checkbox, textarea).",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema object describing the form structure"
+        },
+        "framework": {
+          "type": "string",
+          "enum": ["html", "react"],
+          "description": "Output framework",
+          "default": "html"
+        },
+        "formName": {
+          "type": "string",
+          "description": "Form component name (for React)",
+          "default": "GeneratedForm"
+        }
+      },
+      "required": ["schema"]
+    },
+    "example": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "title": "Full Name" },
+          "email": { "type": "string", "format": "email" },
+          "age": { "type": "number", "minimum": 18 }
+        },
+        "required": ["name", "email"]
+      },
+      "framework": "react"
+    }
+  },
+  "output": {
+    "type": "json",
+    "format": "{ code: string, fields: number }"
+  },
+  "tokenSavings": "Saves 400-1000 tokens by generating complete form code instead of manual form creation",
+  "tags": ["forms", "json-schema", "html", "react", "validation"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 30
+}

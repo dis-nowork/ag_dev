@@ -1,0 +1,73 @@
+{
+  "name": "dep-graph",
+  "version": "1.0.0",
+  "category": "analyzer",
+  "description": "Analyzes project dependencies from package.json, requirements.txt, and Gemfile to identify duplicates, outdated packages, and heavy dependencies",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "required": ["projectPath"],
+      "properties": {
+        "projectPath": {
+          "type": "string",
+          "description": "Path to project directory"
+        }
+      }
+    },
+    "example": {
+      "projectPath": "./my-node-project"
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          }
+        },
+        "devDependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          }
+        },
+        "totalDeps": { "type": "number" },
+        "outdatedCheck": {
+          "type": ["object", "null"],
+          "properties": {
+            "outdated": { "type": "array" },
+            "duplicates": { "type": "array" }
+          }
+        },
+        "tree": {
+          "type": "object",
+          "properties": {
+            "ecosystem": { "type": "string" },
+            "files": { "type": "array" },
+            "heavyPackages": { "type": "array" }
+          }
+        }
+      }
+    }
+  },
+  "tokenSavings": "Summarizes dependency trees and package info, saving 95%+ tokens vs full package.json files",
+  "tags": ["dependencies", "packages", "npm", "python", "ruby", "analysis"],
+  "requires": [],
+  "run": "node run.js",
+  "timeout": 120
+}

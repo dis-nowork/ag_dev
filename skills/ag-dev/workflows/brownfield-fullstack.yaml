@@ -1,0 +1,57 @@
+id: brownfield-fullstack
+name: Brownfield Full-Stack Enhancement
+description: Add features or enhance an existing full-stack application
+
+phases:
+  - id: classify
+    agent: analyst
+    task: |
+      Classify enhancement scope:
+      - Single story (< 4h) → skip to dev
+      - Small feature (1-3 stories) → skip to sharding
+      - Major enhancement → full workflow
+    output: .agdev/handoff/classification.md
+
+  - id: doc-check
+    agent: analyst
+    condition: major enhancement
+    task: Check if existing docs are adequate. If not, flag for document-project.
+    output: .agdev/handoff/doc-assessment.md
+
+  - id: document-project
+    agent: architect
+    condition: docs inadequate
+    task: Analyze and document the existing codebase.
+    output: .agdev/handoff/existing-architecture.md
+
+  - id: prd
+    agent: pm
+    task: Create PRD for the enhancement using existing docs as context.
+    input: existing docs + .agdev/handoff/existing-architecture.md
+    output: .agdev/handoff/prd.md
+
+  - id: architecture
+    agent: architect
+    condition: architectural changes needed
+    task: Create architecture doc for significant changes only.
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/architecture.md
+
+  - id: validation
+    agent: po
+    task: Validate for integration safety and completeness.
+    output: .agdev/handoff/validation-report.md
+
+  - id: sharding
+    agent: po
+    task: Break PRD into stories.
+    output: .agdev/handoff/sharded-docs/
+
+  - id: dev-cycle
+    repeat: for each story
+    steps:
+      - agent: dev
+        task: Implement with tests.
+      - agent: qa
+        optional: true
+        task: Review. APPROVE/REJECT.

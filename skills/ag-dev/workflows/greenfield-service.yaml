@@ -1,0 +1,45 @@
+id: greenfield-service
+name: Greenfield Service/API
+description: Build a backend service or API from concept to development
+
+phases:
+  - id: discovery
+    agent: analyst
+    task: Create project brief focused on API/service requirements.
+    output: .agdev/handoff/project-brief.md
+
+  - id: prd
+    agent: pm
+    task: Create PRD focused on API endpoints, data models, business logic.
+    input: .agdev/handoff/project-brief.md
+    output: .agdev/handoff/prd.md
+
+  - id: architecture
+    agent: architect
+    task: Create service architecture (API design, data model, deployment).
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/architecture.md
+
+  - id: validation
+    agent: po
+    task: Validate all artifacts for consistency.
+    input: all handoff files
+    output: .agdev/handoff/validation-report.md
+
+  - id: sharding
+    agent: po
+    task: Break PRD into dev-ready stories.
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/sharded-docs/
+
+  - id: dev-cycle
+    repeat: for each story
+    steps:
+      - agent: dev
+        task: Implement story with tests.
+      - agent: qa
+        optional: true
+        task: Review. APPROVE/REJECT.
+      - agent: dev
+        condition: qa REJECTED
+        task: Fix issues.

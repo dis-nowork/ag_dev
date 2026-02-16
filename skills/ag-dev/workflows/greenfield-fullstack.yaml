@@ -1,0 +1,96 @@
+id: greenfield-fullstack
+name: Greenfield Full-Stack Application
+description: Build a full-stack app from concept to development
+
+phases:
+  - id: bootstrap
+    agent: devops
+    task: |
+      Setup development environment:
+      - Initialize git repo, create .gitignore, README.md, package.json
+      - Verify tooling (git, node, etc.)
+      - Create project structure
+    output: .agdev/handoff/environment-report.md
+
+  - id: discovery
+    agent: analyst
+    task: |
+      Create project brief from user requirements.
+      Include: problem statement, target users, key features, constraints, success criteria.
+    input: User's project description
+    output: .agdev/handoff/project-brief.md
+
+  - id: prd
+    agent: pm
+    task: |
+      Create PRD from project brief.
+      Include: user stories, acceptance criteria, MVP scope, success metrics, risks.
+    input: .agdev/handoff/project-brief.md
+    output: .agdev/handoff/prd.md
+
+  - id: ux-spec
+    agent: architect
+    task: |
+      Create front-end specification from PRD.
+      Include: user flows, wireframe descriptions, component hierarchy, design system.
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/front-end-spec.md
+
+  - id: architecture
+    agent: architect
+    task: |
+      Create fullstack architecture from PRD + front-end spec.
+      Include: system diagram, tech stack, API design, data model, deployment strategy.
+      Flag any suggested PRD changes.
+    input:
+      - .agdev/handoff/prd.md
+      - .agdev/handoff/front-end-spec.md
+    output: .agdev/handoff/architecture.md
+
+  - id: prd-update
+    agent: pm
+    condition: architect flagged PRD changes
+    task: Update PRD with architect's suggestions.
+    input: .agdev/handoff/architecture.md
+    output: .agdev/handoff/prd.md (updated)
+
+  - id: validation
+    agent: po
+    task: |
+      Validate all artifacts for consistency and completeness.
+      Check: requirements traceability, story coverage, acceptance criteria clarity.
+      Verdict: PASS or list issues to fix.
+    input:
+      - .agdev/handoff/project-brief.md
+      - .agdev/handoff/prd.md
+      - .agdev/handoff/front-end-spec.md
+      - .agdev/handoff/architecture.md
+    output: .agdev/handoff/validation-report.md
+
+  - id: sharding
+    agent: po
+    task: |
+      Break PRD into development-ready shards (epics → stories).
+      Create: source-tree.md, tech-stack.md, coding-standards.md
+    input: .agdev/handoff/prd.md
+    output: .agdev/handoff/sharded-docs/
+
+  # Repeat for each story:
+  - id: dev-cycle
+    repeat: for each story in sharded-docs
+    steps:
+      - agent: dev
+        task: Implement story. Write code + tests. Use conventional commits.
+        input: Current story file
+        output: Code changes + .agdev/handoff/dev-output.md
+
+      - agent: qa
+        optional: true
+        task: Review implementation. Verdict: APPROVE/REJECT with issues list.
+        input: .agdev/handoff/dev-output.md + code changes
+        output: .agdev/handoff/qa-review.md
+
+      - agent: dev
+        condition: qa REJECTED
+        task: Fix issues from QA review.
+        input: .agdev/handoff/qa-review.md

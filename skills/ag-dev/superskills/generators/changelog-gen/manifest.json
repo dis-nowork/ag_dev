@@ -1,0 +1,48 @@
+{
+  "name": "changelog-gen",
+  "version": "1.0.0",
+  "category": "generator",
+  "description": "Generates formatted changelogs from git commit history, with smart parsing of conventional commits and grouping by type (feat, fix, docs, etc).",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "repoPath": {
+          "type": "string",
+          "description": "Path to git repository"
+        },
+        "fromTag": {
+          "type": "string",
+          "description": "Starting tag/commit (optional, defaults to last tag)"
+        },
+        "toTag": {
+          "type": "string",
+          "description": "Ending tag/commit (optional, defaults to HEAD)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["md", "html"],
+          "description": "Output format"
+        }
+      },
+      "required": ["repoPath"]
+    },
+    "required": ["repoPath"],
+    "example": {
+      "repoPath": "/path/to/repo",
+      "fromTag": "v1.0.0",
+      "toTag": "v1.1.0",
+      "format": "md"
+    }
+  },
+  "output": {
+    "type": "text",
+    "format": "Formatted changelog string in specified format"
+  },
+  "tokenSavings": "Saves 100-500 tokens by generating changelog instead of manually describing commit history",
+  "tags": ["git", "changelog", "conventional-commits", "versioning"],
+  "requires": ["node", "git"],
+  "run": "node run.js",
+  "timeout": 60
+}

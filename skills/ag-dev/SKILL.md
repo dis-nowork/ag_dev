@@ -360,6 +360,47 @@ Four ready-made skills in `skills/`: `content-pack/`, `copywriter/`, `image-gen/
 ### Docs
 Full documentation at `docs/claude-capabilities/`: VISION.md, ARCHITECTURE.md, EXPANSION_MAP.md (149 planned skills across 12 categories), CREATING_SKILLS.md, QUALITY.md
 
+## Parallel Multi-Agent Pipeline
+
+Full parallel execution: decompose a spec → dispatch N agents simultaneously → QA review each → CI → merge.
+
+### One-Command Pipeline
+
+```bash
+# Spec → tasks → parallel agents → review → CI → merge
+bash {skillDir}/scripts/task-runner.sh "$PROJECT_DIR" spec.md "$SOCKET"
+```
+
+### Individual Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/spec-to-tasks.sh` | Break a spec into parallelizable task list (JSON) |
+| `scripts/parallel-dispatch.sh` | Spawn N agents in parallel, each on own git branch |
+| `scripts/auto-review.sh` | QA agent reviews branch (APPROVE/REJECT, max 3 iterations) |
+| `scripts/run-ci-local.sh` | Run CI locally via `act` (nektos/act) |
+| `scripts/merge-reviewed.sh` | Merge approved branches, run CI, push |
+| `scripts/task-runner.sh` | Full orchestration: spec → tasks → dispatch → review → CI → merge |
+
+### Parallel Workflow
+
+See `workflows/parallel-fullstack.md` for the full workflow documentation.
+
+```
+spec-to-tasks.sh    →  parallel-dispatch.sh  →  auto-review.sh (×N)
+                                               →  run-ci-local.sh (×N)
+                                               →  merge-reviewed.sh
+```
+
+### Notion Integration
+
+If `~/.config/notion/api_key` exists, `task-runner.sh` creates/updates tasks in Notion DB automatically.
+
+### CI/CD
+
+- `.github/workflows/ci.yml` — GitHub Actions CI (lint, test, build, shell syntax)
+- `scripts/run-ci-local.sh` — Run CI locally via `act` without pushing
+
 ## Tips
 
 - Each Claude Code session has its own context window — keep tasks focused

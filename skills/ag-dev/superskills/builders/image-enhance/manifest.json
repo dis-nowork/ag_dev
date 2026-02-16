@@ -1,0 +1,74 @@
+{
+  "name": "image-enhance",
+  "version": "1.0.0",
+  "category": "builder",
+  "description": "Enhances images using ImageMagick CLI operations including sharpen, resize, optimize, and upscale. Chains operations in the specified order.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string",
+          "description": "Path to the input image file"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["sharpen", "resize", "optimize", "upscale"]
+          },
+          "description": "List of enhancement operations to apply in order"
+        },
+        "width": {
+          "type": "number",
+          "description": "Target width for resize operation"
+        },
+        "height": {
+          "type": "number",
+          "description": "Target height for resize operation"
+        },
+        "quality": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Quality setting for compression (1-100)"
+        }
+      },
+      "required": ["filePath", "operations"]
+    },
+    "required": ["filePath", "operations"],
+    "example": {
+      "filePath": "/tmp/input.jpg",
+      "operations": ["resize", "sharpen", "optimize"],
+      "width": 800,
+      "height": 600,
+      "quality": 85
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string",
+          "description": "Path to enhanced image file"
+        },
+        "originalSize": {
+          "type": "number",
+          "description": "Original file size in bytes"
+        },
+        "newSize": {
+          "type": "number",
+          "description": "New file size in bytes"
+        }
+      }
+    }
+  },
+  "tokenSavings": "Processes images without needing 200+ tokens of ImageMagick parameter descriptions",
+  "tags": ["image", "enhance", "imagemagick", "resize", "optimize"],
+  "requires": ["imagemagick"],
+  "run": "node run.js",
+  "timeout": 120
+}

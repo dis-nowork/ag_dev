@@ -1,0 +1,69 @@
+{
+  "name": "csv-summarizer",
+  "version": "1.0.0",
+  "category": "analyzer",
+  "description": "Analyzes CSV files and computes comprehensive statistical summaries including column types, distributions, and correlations",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "oneOf": [
+        {
+          "required": ["csvPath"],
+          "properties": {
+            "csvPath": {
+              "type": "string",
+              "description": "Path to CSV file"
+            }
+          }
+        },
+        {
+          "required": ["csvString"],
+          "properties": {
+            "csvString": {
+              "type": "string",
+              "description": "Raw CSV content as string"
+            }
+          }
+        }
+      ]
+    },
+    "example": {
+      "csvString": "name,age,salary\nAlice,30,50000\nBob,25,45000\nCharlie,35,60000"
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "unique": { "type": "number" },
+              "nullCount": { "type": "number" },
+              "min": { "type": ["number", "string", "null"] },
+              "max": { "type": ["number", "string", "null"] },
+              "mean": { "type": ["number", "null"] },
+              "median": { "type": ["number", "null"] },
+              "mode": { "type": ["number", "string", "null"] },
+              "top5": { "type": "array" }
+            }
+          }
+        },
+        "rowCount": { "type": "number" },
+        "correlations": { "type": ["object", "null"] },
+        "summary": { "type": "string" }
+      }
+    }
+  },
+  "tokenSavings": "Reduces large CSV files to compact statistical summaries, saving 90%+ tokens",
+  "tags": ["csv", "statistics", "analysis", "data"],
+  "requires": [],
+  "run": "node run.js",
+  "timeout": 120
+}

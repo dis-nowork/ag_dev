@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, v3-openclaw]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+          fi
+
+      - name: Lint
+        run: |
+          if [ -f package.json ] && grep -q '"lint"' package.json; then
+            npm run lint
+          else
+            echo "No lint script found, skipping"
+          fi
+
+      - name: Test
+        run: |
+          if [ -f package.json ] && grep -q '"test"' package.json; then
+            npm test
+          else
+            echo "No test script found, skipping"
+          fi
+
+      - name: Build
+        run: |
+          if [ -f package.json ] && grep -q '"build"' package.json; then
+            npm run build
+          else
+            echo "No build script found, skipping"
+          fi
+
+      - name: Shell script syntax check
+        run: |
+          find . -name "*.sh" -type f | head -20 | while read f; do
+            bash -n "$f" && echo "✅ $f" || echo "❌ $f"
+          done

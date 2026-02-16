@@ -1,0 +1,59 @@
+{
+  "name": "webhook-fire",
+  "version": "1.0.0",
+  "category": "connector",
+  "description": "Simple HTTP client for firing webhooks with support for GET, POST, PUT methods, custom headers, and JSON/form-encoded payloads using Node's built-in http/https modules.",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Target URL for the HTTP request"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+          "description": "HTTP method",
+          "default": "POST"
+        },
+        "headers": {
+          "type": "object",
+          "description": "Custom headers for the request",
+          "default": {}
+        },
+        "body": {
+          "description": "Request body (can be object, string, or null)"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Request timeout in milliseconds",
+          "default": 30000
+        },
+        "contentType": {
+          "type": "string",
+          "enum": ["json", "form", "text"],
+          "description": "Content-Type for request body",
+          "default": "json"
+        }
+      },
+      "required": ["url"]
+    },
+    "example": {
+      "url": "https://api.example.com/webhook",
+      "method": "POST",
+      "headers": { "Authorization": "Bearer token123" },
+      "body": { "message": "Hello World", "timestamp": "2023-01-01T00:00:00Z" }
+    }
+  },
+  "output": {
+    "type": "json",
+    "format": "{ statusCode, headers, body, duration }"
+  },
+  "tokenSavings": "Saves 200-500 tokens by handling HTTP requests instead of manual implementation",
+  "tags": ["http", "webhook", "api", "request", "connector"],
+  "requires": ["node"],
+  "run": "node run.js",
+  "timeout": 60
+}

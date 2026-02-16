@@ -1,0 +1,71 @@
+{
+  "name": "postgres-query",
+  "version": "1.0.0",
+  "category": "connector",
+  "description": "Executes read-only PostgreSQL queries safely using psql CLI with connection string support",
+  "input": {
+    "type": "json",
+    "schema": {
+      "type": "object",
+      "required": ["connectionString", "query"],
+      "properties": {
+        "connectionString": {
+          "type": "string",
+          "description": "PostgreSQL connection string (postgresql://user:pass@host:port/db)"
+        },
+        "query": {
+          "type": "string",
+          "description": "SQL query to execute (READ-ONLY enforced)"
+        },
+        "params": {
+          "type": "array",
+          "description": "Optional parameters for prepared statements",
+          "items": {
+            "type": ["string", "number", "boolean"]
+          }
+        }
+      }
+    },
+    "example": {
+      "connectionString": "postgresql://user:pass@localhost:5432/mydb",
+      "query": "SELECT * FROM users WHERE age > $1 LIMIT 10",
+      "params": [25]
+    }
+  },
+  "output": {
+    "type": "json",
+    "structure": {
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "array",
+          "description": "Query result rows"
+        },
+        "rowCount": {
+          "type": "number",
+          "description": "Number of rows returned"
+        },
+        "columns": {
+          "type": "array",
+          "description": "Column information",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          }
+        },
+        "duration": {
+          "type": "number",
+          "description": "Query execution time in milliseconds"
+        }
+      }
+    }
+  },
+  "tokenSavings": "Retrieves specific database data instead of full table dumps, saving 98%+ tokens",
+  "tags": ["database", "postgresql", "sql", "query", "data"],
+  "requires": ["psql"],
+  "run": "node run.js",
+  "timeout": 60
+}
