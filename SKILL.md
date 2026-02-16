@@ -240,6 +240,59 @@ bash skills/snp/scripts/evaluate.sh "output text" "content-formats"
 
 **Agents that should use SNP:** content-writer (Sage), seo-analyst (Pixel), and any agent producing user-facing content.
 
+## Engines
+
+Standalone Python scripts in `{skillDir}/engines/` — migrated from Motor de Soluções v1.
+
+| Engine | Script | What it does | Env vars needed |
+|--------|--------|-------------|-----------------|
+| Creative Factory | `engines/creative-factory.py` | Brief → Copy + Image + Landing Page HTML | `GEMINI_API_KEY` |
+| Intelligence Engine | `engines/intelligence-engine.py` | Daily briefing from Brave + HN + Google News | `BRAVE_KEY`, `GEMINI_KEY` |
+| Arsenal Scanner | `engines/arsenal-scanner.py` | Discover high-potential GitHub repos | `GITHUB_TOKEN`, `GEMINI_KEY` |
+| Session Memory | `engines/session-memory-manager.py` | Extract large sessions → Supabase pgvector | `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| Dashboard | `engines/dashboard.py` | Generate HTML system status dashboard | (none) |
+
+### Running engines
+
+```bash
+# Creative Factory
+GEMINI_API_KEY=... python3 {skillDir}/engines/creative-factory.py '{"product":"My SaaS","audience":"devs"}'
+
+# Intelligence briefing
+BRAVE_KEY=... GEMINI_KEY=... python3 {skillDir}/engines/intelligence-engine.py
+
+# Arsenal scan
+GITHUB_TOKEN=... GEMINI_KEY=... python3 {skillDir}/engines/arsenal-scanner.py
+
+# Session memory extraction
+GEMINI_API_KEY=... SUPABASE_SERVICE_ROLE_KEY=... python3 {skillDir}/engines/session-memory-manager.py --dry-run
+
+# Dashboard
+python3 {skillDir}/engines/dashboard.py
+```
+
+## Migrated Reference Docs
+
+Documents in `{skillDir}/docs/` migrated from Motor de Soluções v1:
+
+| Doc | Description |
+|-----|-------------|
+| `design-spec-v1.md` | Original AG Dev design specification |
+| `PRD-motor-solucoes.md` | Motor de Soluções PRD expansion v2 |
+| `potentials.md` | System potential analysis |
+| `replication-guide.md` | How to replicate the system |
+| `capabilities-motor-v1.md` | Motor v1 capabilities catalog |
+| `compute-architecture.md` | Compute architecture design |
+| `google-apis-analysis.md` | Google APIs analysis & opportunities |
+
+## Ported Skills
+
+Three skills from Motor de Soluções in `{skillDir}/skills/`:
+
+- **sentinel/** — Security checks and monitoring
+- **copy-squad/** — Multi-agent copywriting orchestration
+- **hookify/** — Hook/headline generator
+
 ## Tips
 
 - Each Claude Code session has its own context window — keep tasks focused
