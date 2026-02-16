@@ -34,8 +34,10 @@ for agent in "${AGENTS[@]}"; do
     continue
   fi
 
-  # Create tmux session
-  tmux -S "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT_DIR"
+  # Create tmux session (kill existing if any)
+  tmux -S "$SOCKET" kill-session -t "$SESSION" 2>/dev/null || true
+  tmux -S "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT_DIR" 2>/dev/null || \
+    tmux -S "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT_DIR"
 
   # Copy CLAUDE.md into project's .agdev/ for this agent
   mkdir -p "$PROJECT_DIR/.agdev"
