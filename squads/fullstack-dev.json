@@ -1,9 +1,0 @@
-{
-  "id": "fullstack-dev",
-  "name": "Full Stack Development",
-  "icon": "🏗️",
-  "description": "Complete software development team for building full-stack applications from concept to deployment",
-  "agents": ["analyst", "architect", "dev", "qa"],
-  "defaultWorkflow": "greenfield-fullstack",
-  "devCount": 2
-}

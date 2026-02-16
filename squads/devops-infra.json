@@ -1,8 +1,0 @@
-{
-  "id": "devops-infra",
-  "name": "DevOps & Infrastructure",
-  "icon": "🚀",
-  "description": "Infrastructure setup, CI/CD pipelines, and deployment automation",
-  "agents": ["devops", "architect"],
-  "defaultWorkflow": null
-}

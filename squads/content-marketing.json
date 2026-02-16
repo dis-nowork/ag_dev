@@ -1,8 +1,0 @@
-{
-  "id": "content-marketing",
-  "name": "Content & Marketing",
-  "icon": "✍️",
-  "description": "Content creation, SEO optimization, and marketing materials",
-  "agents": ["content-writer", "seo-analyst"],
-  "defaultWorkflow": "spec-pipeline"
-}

@@ -58,35 +58,43 @@ ag_dev/
 ├── SKILL.md              # Main orchestration guide (read this first)
 ├── README.md             # This file
 ├── config.json           # Configuration
-├── agents/               # Agent personas (CLAUDE.md per agent)
-│   ├── analyst/
-│   ├── architect/
-│   ├── dev/
-│   ├── qa/
-│   ├── devops/
-│   ├── pm/
-│   ├── po/
-│   ├── ux/
-│   ├── data-engineer/
-│   ├── scrum-master/
-│   ├── content-writer/
-│   └── seo-analyst/
-├── workflows/            # YAML workflow definitions
-│   ├── greenfield-fullstack.yaml
-│   ├── greenfield-service.yaml
-│   ├── greenfield-ui.yaml
-│   ├── brownfield-fullstack.yaml
-│   ├── brownfield-discovery.yaml
-│   ├── qa-loop.yaml
-│   └── spec-pipeline.yaml
-├── squads/               # Pre-configured team compositions
-├── superskills/          # 31 built-in agent capabilities
-├── memory/               # 3-tier memory (hot/warm/cold)
-├── scripts/              # Setup, dispatch, cleanup scripts
+├── package.json          # Node.js dependencies
+├── engines/              # Core processing engines
+├── libs/                 # Shared libraries
+├── skills/ag-dev/        # **OpenClaw Skill - Single Source of Truth**
+│   ├── agents/           # Agent personas (CLAUDE.md per agent)
+│   │   ├── analyst/
+│   │   ├── architect/
+│   │   ├── dev/
+│   │   ├── qa/
+│   │   ├── devops/
+│   │   ├── pm/
+│   │   ├── po/
+│   │   ├── ux/
+│   │   ├── data-engineer/
+│   │   ├── scrum-master/
+│   │   ├── content-writer/
+│   │   ├── seo-analyst/
+│   │   ├── prompt-engineer/
+│   │   └── cost-analyst/
+│   ├── workflows/        # Markdown workflow definitions
+│   │   ├── greenfield-fullstack.md
+│   │   ├── greenfield-service.md
+│   │   ├── greenfield-ui.md
+│   │   ├── brownfield-fullstack.md
+│   │   ├── brownfield-discovery.md
+│   │   ├── qa-loop.md
+│   │   ├── spec-pipeline.md
+│   │   └── code-review.md
+│   ├── squads/           # Pre-configured team compositions
+│   ├── superskills/      # 31 built-in agent capabilities
+│   ├── scripts/          # Setup, dispatch, cleanup scripts
+│   ├── docs/             # System docs, retrospectives, roadmap
+│   └── memory/           # 3-tier memory (hot/warm/cold)
 └── docs/                 # System docs, retrospectives, roadmap
 ```
 
-## Agents (12)
+## Agents (14)
 
 | Agent | Name | Specialty |
 |-------|------|-----------|
@@ -100,10 +108,12 @@ ag_dev/
 | ux | Uma | UX/UI design, design systems |
 | data-engineer | Dara | Database, schemas, migrations |
 | scrum-master | River | Story creation, sprint planning |
-| content-writer | — | Blog posts, docs, marketing copy |
-| seo-analyst | — | SEO optimization, analytics |
+| content-writer | Sage | Blog posts, docs, marketing copy |
+| seo-analyst | Pixel | SEO optimization, analytics |
+| prompt-engineer | Prism | Prompt optimization, agent behavior tuning |
+| cost-analyst | Ledger | Budget estimation, cost optimization |
 
-## Workflows (7)
+## Workflows (8)
 
 | Workflow | Use When |
 |----------|----------|

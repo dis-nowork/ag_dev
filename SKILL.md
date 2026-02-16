@@ -225,6 +225,22 @@ AG Dev enforces quality at every step:
 4. **Max 5 QA iterations** — If QA rejects 5 times, escalate to human
 5. **DevOps is the ONLY agent that pushes** — No direct pushes from dev agents
 
+## Complementary Skills (Auto-Activate When Relevant)
+
+These workspace skills enhance AG Dev agents when their domain applies:
+
+| Skill | When to activate | Which agents benefit |
+|-------|-----------------|---------------------|
+| `antigravity-prompt-engineering` | Writing/optimizing prompts, debugging agent behavior | Prism (prompt-engineer), all agents |
+| `antigravity-production-code-audit` | "Make production-ready", codebase audit | Quinn (QA), Dex (dev), Aria (architect) |
+| `antigravity-context-degradation` | Long sessions losing coherence, context management | Orchestrator (you), all agents |
+| `antigravity-context-manager` | Multi-agent context orchestration, memory systems | Orchestrator (you), Dara (data-engineer) |
+| `antigravity-multi-agent-patterns` | Designing agent coordination, workflow architecture | Orchestrator (you), Aria (architect) |
+| `antigravity-tool-design` | Building tools/APIs for agent consumption | Aria (architect), Dex (dev) |
+| `antigravity-marketing-psychology` | Marketing decisions, behavioral triggers, conversion | Sage (content-writer), Pixel (SEO) |
+
+**How to use:** Read the skill's SKILL.md before dispatching the relevant agent. Inject key principles into the agent's task prompt.
+
 ## SNP Integration (Synaptic Brain Engine)
 
 For content-related tasks, agents can activate the SNP skill to leverage 734+ professional micro-decisions:
@@ -343,6 +359,47 @@ Four ready-made skills in `skills/`: `content-pack/`, `copywriter/`, `image-gen/
 
 ### Docs
 Full documentation at `docs/claude-capabilities/`: VISION.md, ARCHITECTURE.md, EXPANSION_MAP.md (149 planned skills across 12 categories), CREATING_SKILLS.md, QUALITY.md
+
+## Parallel Multi-Agent Pipeline
+
+Full parallel execution: decompose a spec → dispatch N agents simultaneously → QA review each → CI → merge.
+
+### One-Command Pipeline
+
+```bash
+# Spec → tasks → parallel agents → review → CI → merge
+bash {skillDir}/scripts/task-runner.sh "$PROJECT_DIR" spec.md "$SOCKET"
+```
+
+### Individual Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/spec-to-tasks.sh` | Break a spec into parallelizable task list (JSON) |
+| `scripts/parallel-dispatch.sh` | Spawn N agents in parallel, each on own git branch |
+| `scripts/auto-review.sh` | QA agent reviews branch (APPROVE/REJECT, max 3 iterations) |
+| `scripts/run-ci-local.sh` | Run CI locally via `act` (nektos/act) |
+| `scripts/merge-reviewed.sh` | Merge approved branches, run CI, push |
+| `scripts/task-runner.sh` | Full orchestration: spec → tasks → dispatch → review → CI → merge |
+
+### Parallel Workflow
+
+See `workflows/parallel-fullstack.md` for the full workflow documentation.
+
+```
+spec-to-tasks.sh    →  parallel-dispatch.sh  →  auto-review.sh (×N)
+                                               →  run-ci-local.sh (×N)
+                                               →  merge-reviewed.sh
+```
+
+### Notion Integration
+
+If `~/.config/notion/api_key` exists, `task-runner.sh` creates/updates tasks in Notion DB automatically.
+
+### CI/CD
+
+- `.github/workflows/ci.yml` — GitHub Actions CI (lint, test, build, shell syntax)
+- `scripts/run-ci-local.sh` — Run CI locally via `act` without pushing
 
 ## Tips
 

@@ -1,8 +1,0 @@
-{
-  "id": "backend-api",
-  "name": "Backend API Development",
-  "icon": "🔧",
-  "description": "Specialized team for building backend services and APIs",
-  "agents": ["analyst", "architect", "dev"],
-  "defaultWorkflow": "greenfield-service"
-}
