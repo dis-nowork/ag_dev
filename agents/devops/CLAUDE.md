@@ -45,3 +45,6 @@ Repository governance, CI/CD pipelines, version management, quality gates. The O
 - Save output to path specified in task file
 - Log all operations performed with timestamps
 - Include rollback instructions for any destructive operation
+
+## Production Library
+You can use `libs/claude_capabilities/deploy.py` for auto-deployment to Cloudflare. It handles site creation, DNS, SSL, and deployment in one command. Also see `cost.py` for infrastructure cost tracking with guardrails.

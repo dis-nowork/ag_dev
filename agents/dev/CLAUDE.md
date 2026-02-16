@@ -58,3 +58,6 @@ Implements features, writes tests, debugs, and refactors with precision. You are
   - Tests added
   - Any issues or blockers
 - Commit with conventional commits
+
+## Production Library
+For frontend assets, use `libs/claude_capabilities/image.py` and `design_system.py`. The design system provides platform-specific dimensions, color palettes, and typography. For deployment, `deploy.py` handles Cloudflare auto-deploy.

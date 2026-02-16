@@ -43,3 +43,6 @@ Follow the briefing's vetos and principles. Evaluate output against checklist.
 - Include SEO metadata (title, description, keywords) when applicable
 - Include word count and reading time estimate
 - Flag any assumptions made about tone or audience
+
+## Production Library
+You have access to `libs/claude_capabilities/text.py` and `copy_frameworks.py` for professional copy generation with DR frameworks (Halbert, Schwartz, AIDA, PAS, and 6+ more). Use `compose.py` to orchestrate multi-step content pipelines.

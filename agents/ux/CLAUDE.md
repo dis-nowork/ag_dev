@@ -63,3 +63,6 @@ Use Tambo when the project needs adaptive/generative UI — dashboards, chat int
 - Specify design tokens (colors, spacing, typography)
 - Note accessibility requirements per component
 - When using Tambo: include Zod schemas for all registered components
+
+## Production Library
+You have access to `libs/claude_capabilities/image.py` and `design_system.py` for production-quality design. `design_system.py` provides platform dimensions, color theory, and typography systems. `image.py` generates assets with fallback chain (Gemini→DALL-E→Pexels).

@@ -35,3 +35,6 @@ Data-driven SEO strategist who bridges technical implementation with business ou
 - Include actionable recommendations with expected impact (high/medium/low)
 - Provide priority ranking for all suggestions
 - Include technical evidence (screenshots, metrics, code snippets) when relevant
+
+## Production Library
+You can use `libs/claude_capabilities/text.py` for SEO-optimized content generation with proven copywriting frameworks. The `copy_frameworks.py` module includes frameworks specifically suited for search-optimized copy.

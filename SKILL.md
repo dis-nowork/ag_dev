@@ -293,6 +293,55 @@ Three skills from Motor de Soluções in `{skillDir}/skills/`:
 - **copy-squad/** — Multi-agent copywriting orchestration
 - **hookify/** — Hook/headline generator
 
+## Production Library (CLAUDE_CAPABILITIES)
+
+Self-contained Python library at `libs/claude_capabilities/` (4K+ lines) giving agents production capabilities.
+
+### What it provides
+| Module | Purpose |
+|--------|---------|
+| `image.py` | Image generation with fallback chain (Gemini→DALL-E→Pexels) |
+| `video.py` | Video generation (Kling→Veo→Pexels) |
+| `audio.py` | TTS with fallback (ElevenLabs→XTTS→Edge-TTS) |
+| `text.py` | Copy generation with DR frameworks |
+| `copy_frameworks.py` | 10+ copywriting frameworks (Halbert, Schwartz, AIDA, PAS, etc) |
+| `design_system.py` | Platform dimensions, color theory, typography |
+| `deploy.py` | Auto-deploy to Cloudflare |
+| `compose.py` | Pipeline orchestrator — detects what skills to chain |
+| `cost.py` | Cost tracking with guardrails |
+| `runpod_tasks.py` | RunPod GPU tasks |
+
+### Agent → Module mapping
+- **content-writer** → `text.py` + `copy_frameworks.py` (professional copy with DR frameworks)
+- **seo-analyst** → `text.py` (SEO-optimized content generation)
+- **ux** → `image.py` + `design_system.py` (production-quality design assets)
+- **devops** → `deploy.py` (auto-deployment to Cloudflare)
+- **dev** → `image.py` + `design_system.py` (frontend assets)
+
+### The 6 Pillars
+1. **Prompt Engineering** — Structured prompts for each capability
+2. **Auto Composition** — `compose.py` detects and chains skills automatically
+3. **Cost Guardrails** — `cost.py` tracks spending with configurable limits
+4. **Iteration Loop** — Generate → evaluate → refine cycle
+5. **Fallback Chain** — Each capability tries multiple providers
+6. **Dry-Run** — Preview what would happen without spending
+
+### Usage
+```bash
+# Direct script execution
+python3 libs/claude_capabilities/image.py --prompt "hero banner" --style modern
+python3 libs/claude_capabilities/text.py --framework aida --topic "product launch"
+
+# Or import in Python
+from libs.claude_capabilities import image, text, deploy
+```
+
+### Production Skills
+Four ready-made skills in `skills/`: `content-pack/`, `copywriter/`, `image-gen/`, `tts/`
+
+### Docs
+Full documentation at `docs/claude-capabilities/`: VISION.md, ARCHITECTURE.md, EXPANSION_MAP.md (149 planned skills across 12 categories), CREATING_SKILLS.md, QUALITY.md
+
 ## Tips
 
 - Each Claude Code session has its own context window — keep tasks focused
