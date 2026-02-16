@@ -25,7 +25,7 @@ SESSIONS_DIR = Path(os.environ.get("OPENCLAW_SESSIONS", os.path.expanduser("~/.o
 WORKSPACE = Path(os.environ.get("AGDEV_WORKSPACE", os.path.expanduser("~/.openclaw/workspace")))
 STATE_FILE = WORKSPACE / "memory" / "memory-manager-state.json"
 EXTRACTION_DIR = WORKSPACE / "memory" / "extractions"
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://yxsvdkfdwigtlqjihbce.supabase.co")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qgzwjntkazekkcmmrljh.supabase.co")
 TOKEN_THRESHOLD = 50000
 CHUNK_SIZE = 2000
 
@@ -108,8 +108,8 @@ def create_chunks(entries):
 
 
 def get_embedding(text, gemini_key):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={gemini_key}"
-    body = json.dumps({"model": "models/text-embedding-004", "content": {"parts": [{"text": text[:8000]}]}}).encode()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={gemini_key}"
+    body = json.dumps({"model": "models/gemini-embedding-001", "content": {"parts": [{"text": text[:8000]}]}, "outputDimensionality": 768}).encode()
     for attempt in range(3):
         try:
             req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
@@ -123,10 +123,12 @@ def get_embedding(text, gemini_key):
 
 
 def upload_chunk(content, embedding, source_id, meta, supa_key):
-    body = json.dumps({"content": content, "embedding": str(embedding), "type": "session-extraction",
+    emb_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    body = json.dumps({"content": content, "embedding": emb_str, "type": "session-extraction",
                         "source_id": source_id, "importance": 3, "meta": meta}).encode()
+    anon_key = os.environ.get("SUPABASE_ANON_KEY", supa_key)
     req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/memories", data=body,
-        headers={"apikey": supa_key, "Authorization": f"Bearer {supa_key}",
+        headers={"apikey": anon_key, "Authorization": f"Bearer {supa_key}",
                  "Content-Type": "application/json", "Prefer": "return=minimal"})
     urllib.request.urlopen(req, timeout=15)
 
@@ -203,5 +205,51 @@ def main():
     print(f"\nDone. Processed {processed} sessions.")
 
 
+def process_input_file(filepath):
+    """Process a single markdown file (e.g. memory/2026-02-16.md) into memory chunks."""
+    gemini_key = os.environ.get("GEMINI_API_KEY", os.environ.get("GEMINI_KEY", ""))
+    supa_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not gemini_key or not supa_key:
+        print("ERROR: Set GEMINI_API_KEY and SUPABASE_SERVICE_ROLE_KEY"); sys.exit(1)
+
+    p = Path(filepath)
+    if not p.exists():
+        print(f"ERROR: {filepath} not found"); sys.exit(1)
+
+    text = p.read_text()
+    if len(text) < 100:
+        print("File too short, skipping."); return
+
+    # Split into chunks by headers or paragraphs
+    sections = re.split(r'\n(?=##?\s)', text)
+    chunks = []
+    for s in sections:
+        s = s.strip()
+        if len(s) < 50: continue
+        while len(s) > CHUNK_SIZE:
+            chunks.append(s[:CHUNK_SIZE])
+            s = s[CHUNK_SIZE:]
+        if s: chunks.append(s)
+
+    print(f"Processing {filepath}: {len(chunks)} chunks")
+    source_id = f"memory-{p.stem}"
+    success = 0
+    for i, chunk in enumerate(chunks):
+        emb = get_embedding(chunk, gemini_key)
+        if not emb: continue
+        try:
+            upload_chunk(chunk, emb, f"{source_id}-chunk-{i}",
+                {"source": str(p.name), "date": p.stem, "chunk_index": i}, supa_key)
+            success += 1
+        except Exception as e:
+            print(f"  [{i+1}] error: {str(e)[:60]}")
+        if i % 5 == 0 and i > 0: time.sleep(0.5)
+    print(f"Uploaded: {success}/{len(chunks)}")
+
+
 if __name__ == "__main__":
+    for i, arg in enumerate(sys.argv):
+        if arg == "--input" and i + 1 < len(sys.argv):
+            process_input_file(sys.argv[i + 1])
+            sys.exit(0)
     main()
