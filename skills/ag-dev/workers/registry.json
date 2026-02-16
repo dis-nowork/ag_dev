@@ -79,15 +79,6 @@
         "black"
       ],
       "description": "Detect formatter, run format, report changes"
-    },
-    "image-optimize": {
-      "script": "image-optimize.sh",
-      "triggers": [
-        "image",
-        "optimize"
-      ],
-      "description": "Optimize images in project (compress, resize, convert)",
-      "stub": true
     }
   }
 }

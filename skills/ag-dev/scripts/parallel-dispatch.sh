@@ -93,8 +93,8 @@ TASK
 Read .agdev/handoff/current-task-$TASK_ID.md and execute the task fully. If .agdev/CLAUDE-$AGENT.md exists, read it for your persona. Save a summary of what you did to .agdev/handoff/$TASK_ID-output.md. Write DONE as the last line when finished.
 PEOF
 
-  # === FIX: Launch Claude via stdin pipe + PTY + skip permissions ===
-  CLAUDE_CMD="cd $WORK_DIR && cat $PROMPT_FILE | script -qec 'claude --dangerously-skip-permissions -p - --allowedTools '\"'\"'Bash(*)'\"'\"' '\"'\"'Read(*)'\"'\"' '\"'\"'Write(*)'\"'\"' '\"'\"'Edit(*)'\"'\"'' /dev/null 2>&1 | tee $AGDEV_DIR/handoff/$TASK_ID-output.md && rm -f $PROMPT_FILE && echo 'TASK_DONE_$TASK_ID'"
+  # === FIX: $(cat file) inside script -qec — proven approach ===
+  CLAUDE_CMD="cd $WORK_DIR && script -qec \"claude --dangerously-skip-permissions -p \\\"\\\$(cat $PROMPT_FILE)\\\" --allowedTools 'Bash(*)' 'Read(*)' 'Write(*)' 'Edit(*)'\" /dev/null 2>&1 | tee $AGDEV_DIR/handoff/$TASK_ID-output.md && rm -f $PROMPT_FILE && echo 'TASK_DONE_$TASK_ID'"
 
   tmux -S "$SOCKET" send-keys -t "$SESSION" "$CLAUDE_CMD" Enter
 
