@@ -100,6 +100,8 @@ cat "$PROJECT_DIR/.agdev/handoff/analyst-output.md"
 | scrum-master | River | Scrum Master | Stories, epics, agile facilitation |
 | seo-analyst | Pixel | SEO Analyst | SEO audits, keyword research, growth engineering |
 | ux | Uma | UX/UI Designer | User research, design systems, components |
+| prompt-engineer | Prism | Prompt Engineer | Multi-modal prompt optimization, style detection |
+| cost-analyst | Ledger | Cost Analyst | Budget tracking, cost estimation, provider optimization |
 
 ## Squads (Pre-configured Teams)
 
