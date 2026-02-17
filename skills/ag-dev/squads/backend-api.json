@@ -1,8 +1,7 @@
 {
-  "id": "backend-api",
   "name": "Backend API Development",
-  "icon": "🔧",
-  "description": "Specialized team for building backend services and APIs",
-  "agents": ["analyst", "architect", "dev"],
-  "defaultWorkflow": "greenfield-service"
+  "description": "Full backend team: research, design, implement, data, test, deploy",
+  "agents": ["analyst", "architect", "dev", "data-engineer", "qa", "devops"],
+  "workflow": "greenfield-service",
+  "handoff": ["analyst→architect", "architect→dev", "architect→data-engineer", "dev→qa", "qa→devops"]
 }

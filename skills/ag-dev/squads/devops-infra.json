@@ -1,8 +1,7 @@
 {
-  "id": "devops-infra",
   "name": "DevOps & Infrastructure",
-  "icon": "🚀",
-  "description": "Infrastructure setup, CI/CD pipelines, and deployment automation",
-  "agents": ["devops", "architect"],
-  "defaultWorkflow": null
+  "description": "Infrastructure setup, CI/CD, monitoring, security",
+  "agents": ["devops", "architect", "qa"],
+  "workflow": "brownfield-fullstack",
+  "handoff": ["architect→devops", "devops→qa"]
 }

@@ -52,7 +52,7 @@ for pat in "${simple_patterns[@]}"; do
 done
 
 # --- Medium keywords (weight 1 each) ---
-for kw in "implement" "create" "add feature" "refactor" "modify" "update" \
+for kw in "implement" "create" "build" "add feature" "refactor" "modify" "update" \
           "add function" "add method" "add endpoint" "add page" "add route" \
           "add component" "add hook" "add test" "add api" "write" "extend" \
           "improve" "enhance" "add validation" "add handler"; do
@@ -161,7 +161,7 @@ type_scores_plan=0
 for kw in "database" "migration" "schema" "rls" "sql" "table" "supabase" "prisma"; do
   [[ "$TASK_LOWER" == *"$kw"* ]] && type_scores_db=$((type_scores_db + 1))
 done
-for kw in "api" "backend" "feature" "endpoint" "crud" "server" "route" "handler"; do
+for kw in "api" "backend" "feature" "endpoint" "crud" "server" "route" "handler" "rest" "auth" "middleware" "express" "fastapi" "flask" "nest"; do
   [[ "$TASK_LOWER" == *"$kw"* ]] && type_scores_api=$((type_scores_api + 1))
 done
 for kw in "test" "review" "qa" "coverage" "spec" "assert" "mock"; do

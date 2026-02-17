@@ -1,5 +1,5 @@
 {
-  "_comment": "AG Dev V3 — OpenClaw Edition. Configuration for tmux-based multi-agent orchestration.",
+  "_comment": "AG Dev V3 — OpenClaw Edition. Multi-agent orchestration via tmux + Claude Code CLI.",
   "tmux": {
     "socket": "/tmp/agdev.sock",
     "maxSessions": 16
@@ -8,7 +8,8 @@
     "configPath": "./agents",
     "available": [
       "analyst", "architect", "dev", "qa", "devops", "pm", "po",
-      "ux", "data-engineer", "scrum-master", "content-writer", "seo-analyst"
+      "ux", "data-engineer", "scrum-master", "content-writer", "seo-analyst",
+      "prompt-engineer", "cost-analyst"
     ]
   },
   "workflows": {
@@ -16,25 +17,42 @@
     "available": [
       "greenfield-fullstack", "greenfield-service", "greenfield-ui",
       "brownfield-fullstack", "brownfield-discovery",
-      "qa-loop", "spec-pipeline", "code-review"
+      "qa-loop", "spec-pipeline", "code-review", "parallel-fullstack"
     ]
   },
   "squads": {
-    "path": "./squads"
+    "path": "./squads",
+    "available": ["backend-api", "frontend-ui", "fullstack-dev", "content-marketing", "devops-infra"]
+  },
+  "workers": {
+    "path": "./workers",
+    "registry": "./workers/registry.json"
   },
   "memory": {
-    "baseDir": "./memory",
+    "baseDir": ".agdev/memory",
     "tiers": ["hot", "warm", "cold"]
   },
   "qualityGates": {
     "enforced": true,
     "autoQA": true,
-    "checks": ["lint", "test", "security"]
+    "checks": ["lint", "test", "security"],
+    "maxRetries": 5
   },
   "qaLoop": {
-    "maxIterations": 5
+    "maxIterations": 5,
+    "escalateToHuman": true
   },
   "handoff": {
     "dir": ".agdev/handoff"
+  },
+  "evolution": {
+    "patternThreshold": 3,
+    "minSuccessRate": 0.80,
+    "autoGenerateWorkers": false
+  },
+  "dispatch": {
+    "defaultMode": "auto",
+    "classifierFallbackConfidence": 0.3,
+    "finalizationTimeoutSeconds": 120
   }
 }
