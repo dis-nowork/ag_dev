@@ -47,7 +47,15 @@ for arg in "$@"; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SKILL_DIR="$(cd "$SCRIPT_DIR/../skills/ag-dev" && pwd)"
+# Resolve SKILL_DIR: if we're inside skills/ag-dev/scripts/, go up one level;
+# if we're in a top-level scripts/ dir, look for ../skills/ag-dev
+if [[ -f "$SCRIPT_DIR/../SKILL.md" && -d "$SCRIPT_DIR/../agents" ]]; then
+  SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [[ -d "$SCRIPT_DIR/../skills/ag-dev" ]]; then
+  SKILL_DIR="$(cd "$SCRIPT_DIR/../skills/ag-dev" && pwd)"
+else
+  echo "ERROR: Cannot resolve SKILL_DIR from $SCRIPT_DIR" >&2; exit 1
+fi
 SOCKET="/tmp/agdev.sock"
 WORKSPACE="/home/agdev/.openclaw/workspace"
 RESULTS_DIR="$PROJECT_DIR/.agdev/results"

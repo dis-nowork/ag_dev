@@ -79,6 +79,18 @@
         "black"
       ],
       "description": "Detect formatter, run format, report changes"
+    },
+    "image-optimize": {
+      "script": "image-optimize.sh",
+      "triggers": [
+        "optimize image",
+        "compress image",
+        "resize image",
+        "image optimize",
+        "webp",
+        "imagemagick"
+      ],
+      "description": "Optimize images: compress, resize, convert formats"
     }
   }
 }
