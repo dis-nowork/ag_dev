@@ -1,0 +1,54 @@
+{
+  "site_url": "https://claude.ai",
+  "auth": {
+    "login_url": "https://claude.ai/login",
+    "logged_in_indicator": "div[contenteditable='true']"
+  },
+  "navigation": {
+    "new_chat_button": "button:has-text('New Chat')",
+    "projects_link": "a[href*='/projects'], button:has-text('Projects')",
+    "chat_history_link": "a[href*='/chats'], button:has-text('Chats')",
+    "settings_button": "button[aria-label='Settings']",
+    "sidebar": "nav, aside"
+  },
+  "chat": {
+    "input": "div[contenteditable='true']",
+    "send_button": "button[aria-label='Send Message']",
+    "message_container": "[data-testid*='message']",
+    "user_message": "[data-testid='user-message']",
+    "assistant_response_container": "[data-is-streaming='false']",
+    "assistant_response_text": "[data-is-streaming='false'] p:last-of-type",
+    "thinking_indicator": "text=Thinking",
+    "chat_title": "h1, div[role='heading']",
+    "attach_button": "button[aria-label='Attach files'], input[type='file']",
+    "file_input": "input[type='file']"
+  },
+  "projects": {
+    "create_project_button": "button:has-text('Create Project'), button:has-text('New Project')",
+    "project_name_input": "input[placeholder*='Project name'], input[placeholder*='project']",
+    "project_card": "[data-testid='project-card'], div[role='button']:has-text('Project')",
+    "project_title": "h2, h3, [data-testid='project-title']",
+    "project_list": "div[role='list'], main",
+    "add_content_button": "button:has-text('Add content')"
+  },
+  "artifacts": {
+    "artifact_panel": "div[data-testid='artifact'], div[class*='artifact']",
+    "all_artifacts": "div[data-testid='artifact']",
+    "artifact_title": "div[data-testid='artifact-title'], div[class*='artifact'] h2",
+    "artifact_content": "div[data-testid='artifact-content'] code, div[class*='artifact'] pre code",
+    "artifact_code_block": "div[data-testid='artifact'] pre code",
+    "copy_button": "button[data-testid='copy-code-button'], button:has-text('Copy')"
+  },
+  "model_selector": {
+    "model_dropdown": "button:has-text('Opus'), button:has-text('Sonnet'), button:has-text('Haiku')",
+    "opus_option": "text=Opus",
+    "sonnet_option": "text=Sonnet",
+    "haiku_option": "text=Haiku"
+  },
+  "history": {
+    "chat_list": "div[role='list'], main",
+    "chat_item": "div[role='listitem'], a[href*='/chat/']",
+    "chat_item_title": "span, div.text, h3",
+    "search_input": "input[type='search'], input[placeholder*='Search']"
+  }
+}

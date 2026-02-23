@@ -1,0 +1,19 @@
+{
+  "name": "Claude.ai",
+  "version": "1.0.0",
+  "description": "Full control of Claude.ai interface",
+  "requires_login": true,
+  "default_timeout": 30000,
+  "wait_for_response_timeout": 120000,
+  "capabilities": [
+    "create-chat",
+    "send-message",
+    "get-response",
+    "list-chats",
+    "create-project",
+    "list-projects",
+    "download-artifact",
+    "get-artifacts",
+    "screenshot"
+  ]
+}

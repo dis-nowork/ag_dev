@@ -1,0 +1,16 @@
+{
+  "site_url": "https://example.com",
+  "auth": {
+    "login_url": "https://example.com/login",
+    "logged_in_indicator": "SELECTOR_FOR_ELEMENT_VISIBLE_WHEN_LOGGED_IN"
+  },
+  "navigation": {
+    "menu_button": "SELECTOR",
+    "home_link": "SELECTOR"
+  },
+  "main_actions": {
+    "input_field": "SELECTOR",
+    "submit_button": "SELECTOR",
+    "result_container": "SELECTOR"
+  }
+}

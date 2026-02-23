@@ -1,0 +1,40 @@
+# Site Controller .gitignore
+
+# Profiles contain sensitive cookies/session data
+profiles/*/
+!profiles/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots and downloads
+*.png
+*.jpg
+*.jpeg
+*.pdf
+downloads/
+
+# Logs
+*.log
+
+# Sensitive
+.env
+secrets.json
+credentials.json

@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""
+Site Controller CLI
+Universal browser automation for multiple sites
+"""
+
+import sys
+import asyncio
+import importlib.util
+from pathlib import Path
+
+# Add core to path
+SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from core.browser import BrowserEngine
+
+
+async def main():
+    if len(sys.argv) < 3:
+        print("Usage: site-cli <site> <command> [args...]")
+        print("\nAvailable sites:")
+        plugins_dir = SCRIPT_DIR / "plugins"
+        for plugin_dir in plugins_dir.iterdir():
+            if plugin_dir.is_dir() and not plugin_dir.name.startswith('_'):
+                print(f"  - {plugin_dir.name}")
+        print("\nExamples:")
+        print("  site-cli claude create-chat 'My Project'")
+        print("  site-cli claude send-message 'Explain quantum computing'")
+        print("  site-cli claude list-chats")
+        print("\nOptions:")
+        print("  --headless       Run in background (no visible browser)")
+        print("  --profile=X      Use specific profile (default: site name)")
+        print("  --output=TYPE    Delivery method: file:<path> or clickup:<list_id>")
+        sys.exit(1)
+
+    site_name = sys.argv[1]
+    command = sys.argv[2]
+    args = sys.argv[3:]
+
+    # Parse options
+    headless = '--headless' in args
+    profile_name = site_name  # Default: use site name as profile
+    output = None
+
+    for arg in args[:]:
+        if arg.startswith('--profile='):
+            profile_name = arg.split('=')[1]
+            args.remove(arg)
+        elif arg.startswith('--output='):
+            output = arg.split('=', 1)[1]
+            args.remove(arg)
+        elif arg == '--headless':
+            args.remove(arg)
+
+    # Load plugin
+    plugin_dir = SCRIPT_DIR / "plugins" / site_name
+    if not plugin_dir.exists():
+        print(f"❌ Plugin not found: {site_name}")
+        print(f"   Looking in: {plugin_dir}")
+        sys.exit(1)
+
+    # Import plugin module
+    commands_file = plugin_dir / "commands.py"
+    if not commands_file.exists():
+        print(f"❌ Plugin commands.py not found: {commands_file}")
+        sys.exit(1)
+
+    spec = importlib.util.spec_from_file_location(f"{site_name}_plugin", commands_file)
+    plugin_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin_module)
+
+    # Initialize browser and plugin
+    async with BrowserEngine(profile_name=profile_name, headless=headless) as browser:
+        # Create plugin instance
+        if not hasattr(plugin_module, 'Plugin'):
+            print(f"❌ Plugin class not found in {commands_file}")
+            sys.exit(1)
+
+        plugin = plugin_module.Plugin(browser, plugin_dir)
+
+        # Get available commands first
+        commands = plugin.get_commands()
+
+        if command not in commands:
+            print(f"❌ Unknown command: {command}")
+            print(f"\nAvailable commands for '{site_name}':")
+            for cmd_name in commands.keys():
+                print(f"  - {cmd_name}")
+            sys.exit(1)
+
+        # Initialize plugin (skip for 'login' command)
+        if command != 'login':
+            await plugin.initialize()
+
+        # Execute command
+        try:
+            # Pass output parameter to commands that support it
+            if output and command in ['ask', 'research']:
+                result = await commands[command](*args, output=output)
+            else:
+                result = await commands[command](*args)
+
+            # Output result
+            if result is not None:
+                if isinstance(result, dict):
+                    # Special formatting for ask responses with artifacts
+                    if 'response' in result and 'artifacts' in result:
+                        print(result['response'])
+                        print("\n" + "="*60)
+                        print(f"📦 {len(result['artifacts'])} artifact(s) extracted:")
+                        print("="*60)
+                        for art in result['artifacts']:
+                            print(f"  [{art['index']}] {art['language']} - {art['type']}")
+                            print(f"      File: {art['file']}")
+                            print(f"      Size: {art['size']} chars")
+                        print("="*60)
+                    else:
+                        import json
+                        print(json.dumps(result, indent=2))
+                elif isinstance(result, list):
+                    for item in result:
+                        print(f"  - {item}")
+                else:
+                    print(result)
+
+        except Exception as e:
+            print(f"❌ Error executing command: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
